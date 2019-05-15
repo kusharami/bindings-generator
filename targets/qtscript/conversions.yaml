@@ -1,0 +1,34 @@
+definitions:
+  # the names of the functions - we use this to generate the code and to register the functions in
+  # the javascript class
+  ifunction: "${qtscript_class_name}::${registration_name}"
+  sfunction: "${qtscript_class_name}::${registration_name}"
+conversions:
+  native_types:
+    "std::string": QByteArray
+    "char*": QByteArray
+    "unsigned char*": QByteArray
+  to_native:
+    "std::string": "$std::string(${in_value}.data(), size_t(${in_value}.size())"
+    "char*": "${in_value}.data()"
+    "unsigned char*": "reinterpret_cast<${'const' if $is_const else ''} unsigned char*>(${in_value}.data())"
+    intptr_t: "${in_value}"
+    uintptr_t: "${in_value}"
+    int64_t: "${in_value}"
+    uint64_t: "${in_value}"
+  from_native:
+    "std::string": "QByteArray(${in_value}.c_str(), int(${in_value}.size()))"
+    "char*": "QByteArray(${in_value})"
+    "unsigned char*": "QByteArray(reinterpet_cast<const char*>(${in_value}))"
+    intptr_t: "${in_value}"
+    uintptr_t: "${in_value}"
+    int64_t: "${in_value}"
+    uint64_t: "${in_value}"
+  ns_map:
+    "cocos2d::extension::": "cc."
+    "cocos2d::ui::": "ccui."
+    "cocos2d::": "cc."
+    "spine::": "sp."
+    "cocostudio::": "ccs."
+    "cocosbuilder::": "cc."
+    "CocosDenshion::": "cc."
