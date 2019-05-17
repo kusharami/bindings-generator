@@ -4,7 +4,7 @@
 } // end of ${namespace_name}
 #end for
 
-#if not $current_class.has_virtual_destructor
+#if  $current_class.is_inplace_class
 Q_DECLARE_METATYPE(${current_class.namespaced_class_name})
 #end if
 Q_DECLARE_METATYPE(${current_class.namespaced_class_name} *)

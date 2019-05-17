@@ -1,4 +1,3 @@
-#if $base_parent is not None
 #set ReturnType = $ret_type.to_string($generator)
 #set cur_min_args = $min_args
 #while $cur_min_args <= $max_args
@@ -10,4 +9,3 @@
 	#end if
 	#set cur_min_args += 1
 #end while
-#end if

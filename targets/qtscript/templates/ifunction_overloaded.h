@@ -1,4 +1,3 @@
-#if $base_parent is not None
 #set cur_min_args = $min_args
 #while $cur_min_args <= $max_args
 	#for impl in $implementations
@@ -19,4 +18,3 @@
 	#end for
 	#set $cur_min_args += 1
 #end while
-#end if

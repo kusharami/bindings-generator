@@ -1,4 +1,3 @@
-#if $base_parent is not None
 ## ===== static function implementation template
 QScriptValue ${signature_name}(QScriptContext *context, QScriptEngine* engine)
 {
@@ -19,9 +18,9 @@ QScriptValue ${signature_name}(QScriptContext *context, QScriptEngine* engine)
 		#set arg_idx = 0
 		#while $arg_idx < $cur_min_args
 			#set arg = $arguments[$arg_idx]
-			#set arg_name = $argument_names[$arg_idx]
+			#set arg_name = 'arg' + str($arg_idx)
 			#set arg_decl = $arg.to_string($generator)
-			#set arg_name_tmp = 'tmp__' + str($arg_idx)
+			#set arg_name_tmp = 'tmp_' + str($arg_idx)
 			#set from_qtscript = "qscriptvalue_cast<{}>(context->argument({}))".format($arg_decl, $arg_idx);
 			#set arg_native = $arg.to_native({
 					"generator": $generator,
@@ -61,4 +60,3 @@ QScriptValue ${signature_name}(QScriptContext *context, QScriptEngine* engine)
 	return engine->uncaughtException();
 }
 
-#end if

@@ -1,4 +1,3 @@
-#if $base_parent is not None
 #set cur_min_args = $min_args
 #while $cur_min_args <= $max_args
 	#for impl in $implementations
@@ -12,21 +11,20 @@
 		#set arg_decl_list = ", ".join($impl.get_decl_arg_list($generator, $cur_min_args))
 ${ReturnType} ${signature_name}(${arg_decl_list})
 {
-	auto object = thiz<${class_name} *>();
+	auto __o = this->thiz<${class_name} *>();
 		#set arg_list = ", ".join($impl.get_native_call_args($generator, $cur_min_args))
-		#set call_method = "object->{}({})".format($func_name, $arg_list)
+		#set call_method = "__o->{}({})".format($func_name, $arg_list)
 		#if $ReturnType == "void"
-	if (object)
+	if (__o)
 	{
 		${call_method};
 	}
 		#else
-	if (object)
+	if (__o)
 	{
 		#set ret_value = $impl.ret_type.from_native({
 				"generator": $generator,
 				"in_value": $call_method,
-				"class_name": $class_name,
 				"default": $call_method
 			})
 		#if $impl.ret_type.is_const and $ReturnType.endswith('*')
@@ -38,17 +36,14 @@ ${ReturnType} ${signature_name}(${arg_decl_list})
 	return false;
 			#elif $ReturnType.endswith('*')
 	return nullptr;
-			#elif $impl.ret_type.is_enum
-	return ${ReturnType}(0);
-			#elif $impl.ret_type.is_numeric
-	return 0;
+			#elif $impl.ret_type.is_enum or $impl.ret_type.is_numeric
+	return static_cast<${ReturnType}>(0);
 			#else
 	return ${ReturnType}();
 			#end if
 		#end if
 }
-
+		#break
 	#end for
 	#set $cur_min_args += 1
 #end while
-#end if
