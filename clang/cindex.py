@@ -2711,7 +2711,7 @@ class TranslationUnit(ClangObject):
                                     len(unsaved_files), options)
 
         if not ptr:
-            raise TranslationUnitLoadError("Error parsing translation unit.")
+            raise TranslationUnitLoadError("Error parsing translation unit {}.".format(filename))
 
         return cls(ptr, index=index)
 

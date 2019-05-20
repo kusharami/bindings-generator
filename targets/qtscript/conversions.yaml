@@ -16,6 +16,7 @@ conversions:
     uintptr_t: "${in_value}"
     int64_t: "${in_value}"
     uint64_t: "${in_value}"
+    size_t: "${in_value}"
   from_native:
     "std::string": "QByteArray(${in_value}.c_str(), int(${in_value}.size()))"
     "char*": "QByteArray(${in_value})"
@@ -24,6 +25,7 @@ conversions:
     uintptr_t: "${in_value}"
     int64_t: "${in_value}"
     uint64_t: "${in_value}"
+    size_t: "${in_value}"
   ns_map:
     "cocos2d::extension::": "cc."
     "cocos2d::ui::": "ccui."

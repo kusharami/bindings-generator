@@ -544,15 +544,16 @@ class NativeType(object):
 
     def finish_init(self):
         # mark argument as not supported
-        if self.name == INVALID_NATIVE_TYPE:
-            self.not_supported = True
+        if not self.not_supported:
+            if self.name == INVALID_NATIVE_TYPE:
+                self.not_supported = True
 
         self.is_numeric = False
         if not self.is_pointer:
             name = self.name.split(' ')
             if name:
                 name = name[-1]
-                if re.match("^(unsigned|char|short|int|double|float|long|size_t|intptr_t|uintptr_t)$", name) is not None:
+                if re.match("^(unsigned|char|short|int|double|float|long|size_t|intptr_t|uintptr_t|int64_t|uint64_t)$", name) is not None:
                     self.is_numeric = True
 
         self.not_supported = self.not_supported or ('?' in self.namespaced_name)
@@ -982,9 +983,12 @@ class NativeFunction(object):
                 while idx < new_arg_count:
                     new_names.append('arg' + str(idx))
                     arg = args[idx]
-                    if arg_idx < max_args and arg is None:
-                        arg = arguments[arg_idx]
-                        arg_idx += 1
+                    if arg is None:
+                        if arg_idx < max_args:
+                            arg = arguments[arg_idx]
+                            arg_idx += 1
+                    elif arg.namespaced_name.isdigit():
+                        arg = arguments[int(arg.namespaced_name)]
                     new_args.append(arg)
                     idx += 1
 
@@ -1059,12 +1063,17 @@ class NativeFunction(object):
         for arg in self.native_call_args:
             fmt_args = []
             i = 0
+            new_i = 0
+            new_arg = arg
             while i < arg_count:
-                if '{' + str(i) + '}' in arg:
+                fmt = '{' + str(i) + '}'
+                if fmt in arg:
                     fmt_args.append(arg_list[i])
+                    new_arg = new_arg.replace(fmt, '{' + str(new_i) + '}')
+                    new_i += 1
                 i += 1
 
-            result.append(arg.format(*fmt_args))
+            result.append(new_arg.format(*fmt_args))
 
         return result
 
@@ -1768,17 +1777,17 @@ def get_function_decl_with_params(k):
                 args.append(None if t == '?' else NativeType.from_string(t))
 
         s = k[end + 1:].strip()
-        ret_type = None if not s else s.split(",")
+        ret_type = s.split(",")
 
-        arg_count = 0 if ret_type is None else len(ret_type)
+        arg_count = len(ret_type)
         if arg_count > 1:
             native_args = ret_type[1:]
 
         k = func_name.strip()
-        if arg_count >= 1:
-            ret_type = NativeType.from_string(ret_type[0])
-        else:
-            ret_type = None
+        if arg_count > 0:
+            ret_type = ret_type[0]
+
+        ret_type = None if not ret_type or ret_type == '?' else NativeType.from_string(ret_type)
 
     return {
         'name': k,
@@ -2331,7 +2340,11 @@ def main():
     userconfig.read('userconf.ini')
     print 'Using userconfig \n ', userconfig.items('DEFAULT')
 
-    clang_lib_path = os.path.join(userconfig.get('DEFAULT', 'cxxgeneratordir'), 'libclang')
+    clang_lib_path = os.environ['LIB_CLANG_DIR'] if 'LIB_CLANG_DIR' in os.environ else ""
+    if not clang_lib_path:
+        clang_lib_path = os.path.abspath(userconfig.get('DEFAULT', 'libclangdir') \
+            if userconfig.has_option('DEFAULT', 'libclangdir') else \
+            os.path.join(os.path.dirname(sys.argv[0]), 'libclang'))
     cindex.Config.set_library_path(clang_lib_path);
 
     config = ConfigParser.SafeConfigParser()

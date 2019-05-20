@@ -29,7 +29,11 @@ QScriptValue ${signature_name}(QScriptContext *context, QScriptEngine* engine)
 				#set arg_type = $arg.to_string($generator)
 				#set arg_name = 'arg' + str($arg_idx)
 				#set arg_name_tmp = 'tmp_' + str($arg_idx)
-				#set from_qtscript = "qscriptvalue_cast<{}>(context->argument({}))".format($arg_type, $arg_idx);
+				#if $arg.namespaced_name == 'QScriptValue'
+					#set from_qtscript = 'context->argument({})'.format($arg_idx)
+				#else
+					#set from_qtscript = "qscriptvalue_cast<{}>(context->argument({}))".format($arg_type, $arg_idx);
+				#end if
 				#set arg_native = $arg.to_native({
 						"generator": $generator,
 						"is_const": $arg.is_const,

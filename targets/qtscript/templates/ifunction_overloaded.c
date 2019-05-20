@@ -43,6 +43,7 @@ ${ReturnType} ${signature_name}(${arg_decl_list})
 			#end if
 		#end if
 }
+
 		#break
 	#end for
 	#set $cur_min_args += 1
