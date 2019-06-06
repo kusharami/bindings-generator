@@ -1,9 +1,9 @@
 ## ===== static function implementation template - for overloaded functions
-QScriptValue ${signature_name}(QScriptContext *context, QScriptEngine* engine)
+QScriptValue ${signature_name}(QScriptContext *context, QScriptEngine* __e)
 {
-	if (!QtScriptEngineUtils::checkArgumentCount(context, ${min_args}, ${max_args}))
+	if (!QtScriptUtils::checkArgumentCount(context, ${min_args}, ${max_args}))
 	{
-		return engine->uncaughtException();
+		return __e->uncaughtException();
 	}
 
 	switch (context->argumentCount())
@@ -36,7 +36,7 @@ QScriptValue ${signature_name}(QScriptContext *context, QScriptEngine* engine)
 				#end if
 				#set arg_native = $arg.to_native({
 						"generator": $generator,
-						"is_const": $arg.is_const,
+						"arg": $arg,
 						"in_value": $arg_name_tmp,
 						"default": $arg_name_tmp
 					});
@@ -54,9 +54,9 @@ QScriptValue ${signature_name}(QScriptContext *context, QScriptEngine* engine)
 		#set func_call = "{}::{}({})".format($class_name, $func_name, $arg_list)
 		#if $ReturnType == "void"
 			${func_call};
-			return engine->undefinedValue();
+			return __e->undefinedValue();
 		#else
-			return engine->toScriptValue(${impl.ret_type.from_native({
+			return __e->toScriptValue(${impl.ret_type.from_native({
 				"generator": $generator,
 				"in_value": $func_call,
 				"default": $func_call
@@ -73,8 +73,8 @@ QScriptValue ${signature_name}(QScriptContext *context, QScriptEngine* engine)
 #end while
 	}
 
-	QtScriptEngineUtils::badArgumentsException(context,
+	QtScriptUtils::badArgumentsException(context,
 			"${namespaced_class_name}::${func_name}");
-	return engine->uncaughtException();
+	return __e->uncaughtException();
 }
 

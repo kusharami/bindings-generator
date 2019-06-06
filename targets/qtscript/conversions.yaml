@@ -8,15 +8,24 @@ conversions:
     "std::string": QByteArray
     "char*": QByteArray
     "unsigned char*": QByteArray
+    "std::function": QScriptValue
+    "@QFlags<.*>": int
+    "enum": int
   to_native:
-    "std::string": "$std::string(${in_value}.data(), size_t(${in_value}.size())"
-    "char*": "${in_value}.data()"
-    "unsigned char*": "reinterpret_cast<${'const' if $is_const else ''} unsigned char*>(${in_value}.data())"
+    "std::string": "std::string(${in_value}.data(), size_t(${in_value}.size())"
+    "char*": "${in_value}${'.' if $arg.is_const else '->'}data()"
+    "unsigned char*": "reinterpret_cast<${'const ' if $arg.is_const else ''}unsigned char*>(${in_value}${'.' if $arg.is_const else '->'}data())"
     intptr_t: "${in_value}"
     uintptr_t: "${in_value}"
     int64_t: "${in_value}"
     uint64_t: "${in_value}"
     size_t: "${in_value}"
+    qint64: "${in_value}"
+    quint64: "${in_value}"
+    qintptr: "${in_value}"
+    quintptr: "${in_value}"
+    qreal: "${in_value}"
+    enum: "${arg.to_string($generator) + '(' + $in_value + ')'}"
   from_native:
     "std::string": "QByteArray(${in_value}.c_str(), int(${in_value}.size()))"
     "char*": "QByteArray(${in_value})"
@@ -26,6 +35,14 @@ conversions:
     int64_t: "${in_value}"
     uint64_t: "${in_value}"
     size_t: "${in_value}"
+    qint64: "${in_value}"
+    quint64: "${in_value}"
+    qintptr: "${in_value}"
+    quintptr: "${in_value}"
+    qreal: "${in_value}"
+    enum: "int(${in_value})"
+    "@QFlags<.*>": "int(${in_value})"
+    "std::function": "QScriptValue::NullValue"
   ns_map:
     "cocos2d::extension::": "cc."
     "cocos2d::ui::": "ccui."

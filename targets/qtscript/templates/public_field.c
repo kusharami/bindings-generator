@@ -37,7 +37,7 @@ void ${qtscript_class_name}::_public_field_set_${pretty_name}(${arg_t} value)
 	{
 		object->${name} = ${ntype.to_native({
 						"generator": $generator,
-						"is_const": $ntype.is_const,
+						"arg": $ntype,
 						"in_value": "value",
 						"default": "value"
 					})};

@@ -11,6 +11,14 @@
 		#set arg_decl_list = ", ".join($impl.get_decl_arg_list($generator, $cur_min_args))
 ${ReturnType} ${signature_name}(${arg_decl_list})
 {
+		#set arg_idx = 0
+		#while $arg_idx < $cur_min_args
+			#if $impl.arguments[$arg_idx].is_function
+	auto __e = this->engine();
+				#break
+			#end if
+			#set $arg_idx += 1
+		#end while
 	auto __o = this->thiz<${class_name} *>();
 		#set arg_list = ", ".join($impl.get_native_call_args($generator, $cur_min_args))
 		#set call_method = "__o->{}({})".format($func_name, $arg_list)
@@ -36,6 +44,8 @@ ${ReturnType} ${signature_name}(${arg_decl_list})
 	return false;
 			#elif $ReturnType.endswith('*')
 	return nullptr;
+			#elif $ReturnType == 'int'
+	return 0;
 			#elif $impl.ret_type.is_enum or $impl.ret_type.is_numeric
 	return static_cast<${ReturnType}>(0);
 			#else

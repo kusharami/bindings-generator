@@ -8,11 +8,13 @@ int ${qtscript_class_name}::constructorArgumentCountMax() const
 	return ${max_args};
 }
 
-bool ${qtscript_class_name}::constructObject(QScriptContext *context, NativeObjectType &out) const
+bool ${qtscript_class_name}::constructObject(QScriptContext *context, NativeObjectType &out)
 {
 #if not $is_overloaded
 	#set implementations = [$constructor]
 #end if
+	auto __e = context->engine();
+	Q_UNUSED(__e);
 	bool ok = false;
 	switch (context->argumentCount())
 	{
@@ -39,7 +41,7 @@ bool ${qtscript_class_name}::constructObject(QScriptContext *context, NativeObje
 				#end if
 				#set arg_native = $arg.to_native({
 						"generator": $generator,
-						"is_const": $arg.is_const,
+						"arg": $arg,
 						"in_value": $arg_name_tmp,
 						"default": $arg_name_tmp
 					});
@@ -67,7 +69,7 @@ bool ${qtscript_class_name}::constructObject(QScriptContext *context, NativeObje
 	
 	if (!ok)
 	{
-		QtScriptEngineUtils::badArgumentsException(context,
+		QtScriptUtils::badArgumentsException(context,
 			"${namespaced_class_name} constructor");
 	}
 	return ok;

@@ -388,7 +388,7 @@ def get_namespace_name(declaration_cursor):
         ns = ns.replace("::__1", "")
         return ns + "::"
 
-    return declaration_cursor.displayname
+    return ""
 
 
 class NativeType(object):
@@ -646,6 +646,7 @@ class NativeType(object):
             if not NativeType.dict_has_key_re(from_native_dict, keys):
                 keys.append("object")
         elif self.is_enum:
+            keys.append('enum')
             keys.append("int")
 
         result = None
@@ -654,7 +655,7 @@ class NativeType(object):
             tpl = Template(tpl, searchList=[convert_opts])
             result = str(tpl).rstrip()
 
-        if 'default' in convert_opts:
+        if result is None and 'default' in convert_opts:
             result = convert_opts['default']
 
         if result is None:
@@ -685,12 +686,13 @@ class NativeType(object):
             if not NativeType.dict_has_key_re(to_native_dict, keys):
                 keys.append("object")
         elif self.is_enum:
+            keys.append("enum")
             keys.append("int")
 
         if self.is_function:
             tpl = Template(file=os.path.join(generator.target, "templates", "lambda.c"),
                            searchList=[convert_opts, self])
-            indent = convert_opts['level'] * "\t"
+            indent = convert_opts.get('level', 0) * "\t"
             return str(tpl).replace("\n", "\n" + indent)
 
         tpl = NativeType.dict_get_value_re(to_native_dict, keys)
@@ -709,7 +711,12 @@ class NativeType(object):
         conversions = generator.config['conversions']
         if conversions.has_key('native_types'):
             native_types_dict = conversions['native_types']
-            to_replace = NativeType.dict_get_value_re(native_types_dict, [name])
+            keys = [name]
+            if self.is_enum:
+                keys.append('enum')
+            if self.is_function:
+                keys.append('std::function')
+            to_replace = NativeType.dict_get_value_re(native_types_dict, keys)
             if to_replace:
                 return to_replace
 
@@ -740,11 +747,19 @@ class NativeType(object):
         if conversions.has_key('native_types'):
             native_types_dict = conversions['native_types']
             name = self.namespaced_name
-            to_replace = NativeType.dict_replace_value_re(native_types_dict, [name])
+            keys = [name]
+            if self.is_enum:
+                keys.append('enum')
+            if self.is_function:
+                keys.append('std::function')
+            to_replace = NativeType.dict_replace_value_re(native_types_dict, keys)
 
         if to_replace:
             if self.is_pointer and not to_replace.endswith('*'):
-                name = self.with_qualifier(to_replace) + '&'
+                if self.is_const:
+                    name = self.with_qualifier(to_replace) + '&'
+                else:
+                    name = to_replace + '*'
             else:
                 name = to_replace
                 if self.whole_name.endswith('&'):
@@ -1045,7 +1060,7 @@ class NativeFunction(object):
             arg_name = self.argument_names[index]
             arg_native = arg.to_native({
                 "generator": generator,
-                "is_const": arg.is_const,
+                "arg": arg,
                 "in_value": arg_name,
                 "default": arg_name
             })
@@ -1329,6 +1344,10 @@ def all_methods(methods):
     return ret
 
 
+def underlined_typename(type_name):
+    return re.sub(r"[^a-zA-Z0-9]", '_', type_name.replace("::", "_"))
+
+
 def insert_method(m, to):
     if not to.has_key(m.registration_name):
         to[m.registration_name] = m
@@ -1347,7 +1366,7 @@ class NativeClass(object):
         self.class_name = cursor.displayname
         self.is_base_class = self.class_name in generator.base_classes
         self.base_parent = None
-        self.qtscript_class_name = "QtScript" + self.class_name
+        self.qtscript_class_name = "QtScript" + underlined_typename(self.class_name)
         self.namespaced_class_name = self.class_name
         self.parents = []
         self.fields = []
@@ -1380,6 +1399,7 @@ class NativeClass(object):
             self.target_class_name = re.sub('^' + generator.remove_prefix, '', registration_name)
         else:
             self.target_class_name = registration_name
+
         self.namespaced_class_name = get_namespaced_name(cursor)
         self.namespace_name = get_namespace_name(cursor)
         self.parse()
@@ -1399,7 +1419,7 @@ class NativeClass(object):
 
     @property
     def underlined_class_name(self):
-        return self.namespaced_class_name.replace("::", "_")
+        return underlined_typename(self.namespaced_class_name)
 
     @property
     def root_base_parent(self):
@@ -1421,7 +1441,7 @@ class NativeClass(object):
 
     @property
     def is_inplace_class(self):
-        return self.has_copy_constructor and self.has_copy_operator and \
+        return (self.has_copy_constructor or self.has_copy_operator) and \
             self.has_default_constructor and not self.has_virtual_destructor and not self.is_abstract
 
     def _check_constructor(self):
@@ -1481,6 +1501,12 @@ class NativeClass(object):
                                 break
                     elif m.same_as(pure_m):
                         found = True
+
+                if not found:
+                    for m in self.private_methods:
+                        if pure_m.registration_name == m.registration_name and m.same_as(pure_m):
+                            found = True
+                            break
 
                 if not found:
                     pure_virtual_methods.append(pure_m)
@@ -1945,11 +1971,10 @@ class Generator(object):
         return True
 
     def get_class_or_rename_class(self, class_name):
-
         if self.rename_classes.has_key(class_name):
             # print >> sys.stderr, "will rename %s to %s" % (method_name, self.rename_functions[class_name][method_name])
-            return self.rename_classes[class_name]
-        return class_name
+            class_name = self.rename_classes[class_name]
+        return underlined_typename(class_name)
 
     def should_skip_class(self, class_name):
         for key in self.skip_classes:
@@ -2411,7 +2436,7 @@ def main():
                 'skip_methods': config.get(s, 'skip_methods') if config.has_option(s, 'skip_methods') else "",
                 'skip_classes': config.get(s, 'skip_classes'),
                 'field': config.get(s, 'field') if config.has_option(s, 'field') else None,
-                'rename_functions': config.get(s, 'rename_functions'),
+                'rename_functions': config.get(s, 'rename_functions', 0, dict(userconfig.items('DEFAULT'))),
                 'rename_classes': config.get(s, 'rename_classes'),
                 'out_file': opts.out_file or config.get(s, 'prefix'),
                 'script_control_cpp': config.get(s, 'script_control_cpp') if config.has_option(s,

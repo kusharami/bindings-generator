@@ -1,7 +1,6 @@
 #for namespace_name in $current_class.namespace_list
 namespace ${namespace_name} {
 #end for
-
 #set ClassName = $current_class.qtscript_class_name
 #set has_base_parent = $current_class.base_parent is not None and \
 	not $current_class.is_inplace_class and \
@@ -15,8 +14,8 @@ namespace ${namespace_name} {
 	#end if
 	#set ParentClassName = 'QtScriptBaseClassPrototype<{}>'.format($native_object_type)
 #end if
-${ClassName}::${ClassName}(QScriptEngine *engine, const QString &className)
-	: ${ParentClassName}(engine, className))
+${ClassName}::${ClassName}(QScriptEngine *engine, const QByteArray &className)
+	: ${ParentClassName}(engine, className)
 {
 }
 
@@ -32,7 +31,7 @@ void ${ClassName}::Register(const QScriptValue &targetNamespace)
 #if $has_base_parent
 	auto inherit = engine->defaultPrototype(qMetaTypeId<${current_class.base_parent.class_name} *>());
 #else
-	auto inherit = engine->globalObject().property("Object").property("prototype");
+	QScriptValue inherit;
 #end if
 	auto ctor = RegisterT<${current_class.class_name}, ${ClassName}>(targetNamespace, inherit);
 	Q_ASSERT(ctor.isFunction());
@@ -55,9 +54,9 @@ int ${ClassName}::constructorArgumentCountMax() const
 	return 0;
 }
 
-bool ${ClassName}::constructObject(QScriptContext *context, NativeObjectType &) const
+bool ${ClassName}::constructObject(QScriptContext *context, NativeObjectType &)
 {
-	QtScriptEngineUtils::noPublicConstructorException(context,
+	QtScriptUtils::noPublicConstructorException(context,
 		"${current_class.namespaced_class_name}");
 	return false;
 }
