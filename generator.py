@@ -72,7 +72,9 @@ default_arg_type_arr = [
 
     # An expression that refers to some value declaration, such as a function,
     # varible, or enumerator.
-    cindex.CursorKind.DECL_REF_EXPR
+    cindex.CursorKind.DECL_REF_EXPR,
+
+    cindex.CursorKind.CALL_EXPR
 ]
 
 stl_type_map = {
@@ -371,7 +373,7 @@ def generate_namespace_list(cursor, namespaces=[]):
         parent = cursor.semantic_parent
         if parent:
             if parent.kind == cindex.CursorKind.NAMESPACE or \
-                            parent.kind == cindex.CursorKind.CLASS_DECL or parent.kind == cindex.CursorKind.STRUCT_DECL:
+                    parent.kind == cindex.CursorKind.CLASS_DECL or parent.kind == cindex.CursorKind.STRUCT_DECL:
                 if parent.kind == cindex.CursorKind.NAMESPACE:
                     namespaces.append(parent.displayname)
                 generate_namespace_list(parent, namespaces)
@@ -553,7 +555,10 @@ class NativeType(object):
             name = self.name.split(' ')
             if name:
                 name = name[-1]
-                if re.match("^(unsigned|char|short|int|double|float|long|size_t|intptr_t|uintptr_t|int64_t|uint64_t)$", name) is not None:
+                if re.match("^(unsigned|char|short|ushort|int|uint|double|float|long|size_t|"
+                            "intptr_t|uintptr_t|qintptr|quintptr|"
+                            "int64_t|uint64_t|qreal|qint8|qint16|qint32|qint64|quint8|quint16|quint32|quint64)$",
+                            name) is not None:
                     self.is_numeric = True
 
         self.not_supported = self.not_supported or ('?' in self.namespaced_name)
@@ -704,7 +709,7 @@ class NativeType(object):
             return convert_opts['default']
 
         return "#pragma warning NO CONVERSION TO NATIVE FOR " + self.name + "\n" + convert_opts[
-                                                                                       'level'] * "\t" + "ok = false"
+            'level'] * "\t" + "ok = false"
 
     def to_string(self, generator):
         name = self.namespaced_name
@@ -883,7 +888,8 @@ def convert_nt_with_class(nt, cls):
 
 def has_copy_argument(min_args, max_args, arguments, cls):
     return min_args <= 1 <= max_args and (arguments[0].whole_name == cls.namespaced_class_name or \
-            arguments[0].whole_name == 'const ' + cls.namespaced_class_name + '&')
+                                          arguments[0].whole_name == 'const ' + cls.namespaced_class_name + '&')
+
 
 class NativeFunction(object):
     def __init__(self, cursor, is_constructor, cls):
@@ -953,7 +959,7 @@ class NativeFunction(object):
 
         self.real_min_args = min_args
         self.is_copy_operator = not self.static and (is_constructor or self.func_name == 'operator=') and \
-            has_copy_argument(min_args, max_args, arguments, cls)
+                                has_copy_argument(min_args, max_args, arguments, cls)
 
         if self.registration_name == '0':
             self.not_supported = True
@@ -1442,7 +1448,7 @@ class NativeClass(object):
     @property
     def is_inplace_class(self):
         return (self.has_copy_constructor or self.has_copy_operator) and \
-            self.has_default_constructor and not self.has_virtual_destructor and not self.is_abstract
+               self.has_default_constructor and not self.has_virtual_destructor and not self.is_abstract
 
     def _check_constructor(self):
         self.has_default_constructor = True
@@ -1730,6 +1736,18 @@ class NativeClass(object):
 
         elif cursor.kind == cindex.CursorKind.CXX_ACCESS_SPEC_DECL:
             self._current_visibility = cursor.access_specifier
+            if self.generator.script_type == "qtscript":
+                extent = cursor.extent
+                start = extent.start.column
+                end = extent.end.column
+                count = (end - start) + 1
+                if extent.start.line == extent.end.line and 8 <= count <= 11:
+                    with open(extent.start.file.name, 'rb') as f:
+                        f.seek(extent.start.offset)
+                        content = unicode(f.read(count)).strip()
+                        if content == 'Q_OBJECT' or content == 'Q_GADGET' or \
+                                content == 'Q_SIGNALS:' or content == 'signals':
+                            self._current_visibility = cindex.AccessSpecifier.PRIVATE
 
         elif cursor.kind == cindex.CursorKind.CXX_METHOD and get_availability(cursor) != AvailabilityKind.DEPRECATED:
             # skip if variadic
@@ -1856,6 +1874,7 @@ class Generator(object):
         self.rename_functions = {}
         self.rename_classes = {}
         self.replace_headers = {}
+        self.ignore_metatypes = []
         self.out_file = opts['out_file']
         self.script_control_cpp = opts['script_control_cpp'] == "yes"
         self.script_type = opts['script_type']
@@ -1894,6 +1913,9 @@ class Generator(object):
 
         if opts['skip_classes']:
             self.skip_classes = opts['skip_classes'].split(' ')
+
+        if opts['ignore_metatypes']:
+            self.ignore_metatypes = opts['ignore_metatypes'].split(' ')
 
         if opts['field']:
             list_of_fields = opts['field'].split(';')
@@ -1949,6 +1971,8 @@ class Generator(object):
             list_of_replace_headers = re.split(",\n?", opts['replace_headers'])
             for replace in list_of_replace_headers:
                 header, replaced_header = replace.split("::")
+                if not (replaced_header.startswith("<") and replaced_header.endswith(">")):
+                    replaced_header = '"' + replaced_header + '"'
                 self.replace_headers[header] = replaced_header
 
     def should_rename_function(self, class_name, method_name):
@@ -2368,8 +2392,8 @@ def main():
     clang_lib_path = os.environ['LIB_CLANG_DIR'] if 'LIB_CLANG_DIR' in os.environ else ""
     if not clang_lib_path:
         clang_lib_path = os.path.abspath(userconfig.get('DEFAULT', 'libclangdir') \
-            if userconfig.has_option('DEFAULT', 'libclangdir') else \
-            os.path.join(os.path.dirname(sys.argv[0]), 'libclang'))
+                                             if userconfig.has_option('DEFAULT', 'libclangdir') else \
+                                             os.path.join(os.path.dirname(sys.argv[0]), 'libclang'))
     cindex.Config.set_library_path(clang_lib_path);
 
     config = ConfigParser.SafeConfigParser()
@@ -2422,13 +2446,16 @@ def main():
                 'headers': (config.get(s, 'headers', 0, dict(userconfig.items('DEFAULT')))),
                 'replace_headers': config.get(s, 'replace_headers') if config.has_option(s,
                                                                                          'replace_headers') else None,
+                'ignore_metatypes': config.get(s, 'ignore_metatypes') if config.has_option(s,
+                                                                                           'ignore_metatypes') else None,
                 'classes': config.get(s, 'classes').split(' '),
                 'clang_args': (config.get(s, 'extra_arguments', 0, dict(userconfig.items('DEFAULT'))) or "").split(" "),
                 'target': os.path.join(workingdir, "targets", t),
                 'outdir': outdir,
                 'search_path': (config.get(s, 'search_path', 0, dict(userconfig.items('DEFAULT')))),
                 'remove_prefix': config.get(s, 'remove_prefix'),
-                'target_ns': config.get(s, 'target_namespace').split(' ') if config.has_option(s, 'cpp_namespace') else [],
+                'target_ns': config.get(s, 'target_namespace').split(' ') if config.has_option(s,
+                                                                                               'cpp_namespace') else [],
                 'cpp_ns': config.get(s, 'cpp_namespace').split(' ') if config.has_option(s, 'cpp_namespace') else [],
                 'classes_have_no_parents': config.get(s, 'classes_have_no_parents'),
                 'base_classes_to_skip': config.get(s, 'base_classes_to_skip'),
@@ -2450,7 +2477,7 @@ def main():
                 'cpp_headers': config.get(s, 'cpp_headers', 0, dict(userconfig.items('DEFAULT'))).split(
                     ' ') if config.has_option(s, 'cpp_headers') else None,
                 'win32_clang_flags': (
-                    config.get(s, 'win32_clang_flags', 0, dict(userconfig.items('DEFAULT'))) or "").split(
+                        config.get(s, 'win32_clang_flags', 0, dict(userconfig.items('DEFAULT'))) or "").split(
                     " ") if config.has_option(s, 'win32_clang_flags') else None
             }
             print "\n.... .... Processing section", s, "\n"

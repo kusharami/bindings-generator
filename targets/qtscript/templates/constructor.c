@@ -57,7 +57,9 @@ bool ${qtscript_class_name}::constructObject(QScriptContext *context, NativeObje
 		#end if
 		#set $arg_list = ", ".join($impl.get_native_call_args_with_list($arg_list));
 		#set new = '' if $is_inplace_class else 'new '
+			#if $new or $arg_list
 			out = ${new}${class_name}(${arg_list});
+			#end if
 			ok = true;
 		#break
 	#end for
