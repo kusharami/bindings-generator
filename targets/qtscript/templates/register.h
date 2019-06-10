@@ -15,5 +15,6 @@ Q_DECLARE_METATYPE(${ClassName})
 #end if
 #if $ClassName + '*' not in $current_class.generator.ignore_metatypes
 Q_DECLARE_METATYPE(${ClassName} *)
+Q_DECLARE_METATYPE(const ${ClassName} *)
 #end if
 
