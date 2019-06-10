@@ -1398,6 +1398,7 @@ class NativeClass(object):
         self.namespace_name = ""
         self.is_code_generated = False
         self.has_virtual_destructor = False
+        self.is_destructor_private = False
         self.all_pure_virtual_methods = None
 
         registration_name = generator.get_class_or_rename_class(self.class_name)
@@ -1784,6 +1785,7 @@ class NativeClass(object):
         elif cursor.kind == cindex.CursorKind.DESTRUCTOR:
             if cursor.is_virtual_method():
                 self.has_virtual_destructor = True
+            self.is_destructor_private = self._current_visibility != cindex.AccessSpecifier.PUBLIC
 
         elif cursor.kind == cindex.CursorKind.CONSTRUCTOR and not self.is_abstract:
             m = NativeFunction(cursor, is_constructor=True, cls=self)

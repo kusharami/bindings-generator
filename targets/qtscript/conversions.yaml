@@ -10,6 +10,7 @@ conversions:
     "unsigned char*": QByteArray
     "std::function": QScriptValue
     "@QFlags<.*>": int
+    "@QUrlTwoFlags<.*>": int
     "enum": int
   to_native:
     "std::string": "std::string(${in_value}.data(), size_t(${in_value}.size())"
@@ -31,6 +32,7 @@ conversions:
     qreal: "${in_value}"
     enum: "${arg.namespaced_name + '(' + $in_value + ')'}"
     "@QFlags<.*>": "${arg.namespaced_name + '(' + $in_value + ')'}"
+    "@QUrlTwoFlags<.*>": "${arg.namespaced_name + '(' + $in_value + ')'}"
   from_native:
     "std::string": "QByteArray(${in_value}.c_str(), int(${in_value}.size()))"
     "char*": "QByteArray(${in_value})"
@@ -51,6 +53,7 @@ conversions:
     qreal: "${in_value}"
     enum: "int(${in_value})"
     "@QFlags<.*>": "int(${in_value})"
+    "@QUrlTwoFlags<.*>": "int(${in_value})"
     "std::function": "QScriptValue::NullValue"
   ns_map:
     "cocos2d::extension::": "cc."

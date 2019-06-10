@@ -15,7 +15,7 @@ namespace ${namespace_name} {
 	#else
 		#set $native_object_type += ' *'
 	#end if
-	#set ParentClassName = 'QtScriptBaseClassPrototype<{}>'.format($native_object_type)
+	#set ParentClassName = 'QtScriptBaseClassPrototype<{}, {}>'.format($native_object_type, 'true' if $current_class.is_destructor_private else 'false')
 #end if
 class ${ClassName} ${ClassModifier}: public ${ParentClassName}
 {

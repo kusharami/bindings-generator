@@ -12,7 +12,7 @@ namespace ${namespace_name} {
 	#if not $current_class.is_inplace_class
 		#set $native_object_type += ' *'
 	#end if
-	#set ParentClassName = 'QtScriptBaseClassPrototype<{}>'.format($native_object_type)
+	#set ParentClassName = 'QtScriptBaseClassPrototype<{}, {}>'.format($native_object_type, 'true' if $current_class.is_destructor_private else 'false')
 #end if
 ${ClassName}::${ClassName}(QScriptEngine *engine, const QByteArray &className)
 	: ${ParentClassName}(engine, className)
