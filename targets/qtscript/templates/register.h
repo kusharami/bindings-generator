@@ -5,10 +5,13 @@
 #end for
 
 #set ClassName = $current_class.namespaced_class_name
-#if $current_class.is_inplace_class
-#if $ClassName not in $current_class.generator.ignore_metatypes
+#if not $current_class.is_inplace_class and not $current_class.is_base_class
+#set StorageType = $current_class.namespace_name + $current_class.qtscript_class_name + '::StorageType'
+Q_DECLARE_METATYPE(${StorageType})
+#else
+#if $current_class.is_inplace_class and $ClassName not in $current_class.generator.ignore_metatypes
 Q_DECLARE_METATYPE(${ClassName})
-#end if	
+#end if
 #end if
 #if $ClassName + '*' not in $current_class.generator.ignore_metatypes
 Q_DECLARE_METATYPE(${ClassName} *)

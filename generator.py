@@ -556,7 +556,7 @@ class NativeType(object):
             if name:
                 name = name[-1]
                 if re.match("^(unsigned|char|short|ushort|int|uint|double|float|long|size_t|"
-                            "intptr_t|uintptr_t|qintptr|quintptr|"
+                            "intptr_t|uintptr_t|qintptr|quintptr|qlonglong|qulonglong|"
                             "int64_t|uint64_t|qreal|qint8|qint16|qint32|qint64|quint8|quint16|quint32|quint64)$",
                             name) is not None:
                     self.is_numeric = True
