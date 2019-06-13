@@ -59,6 +59,8 @@ bool ${qtscript_class_name}::constructObject(QScriptContext *context, NativeObje
 		#set new = '' if $is_inplace_class else 'new '
 			#if $new or $arg_list
 			out = ${new}${class_name}(${arg_list});
+			#else
+			Q_UNUSED(out);
 			#end if
 			ok = true;
 		#break

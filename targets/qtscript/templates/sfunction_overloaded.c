@@ -51,7 +51,7 @@ QScriptValue ${signature_name}(QScriptContext *context, QScriptEngine* __e)
 			#end while
 		#end if
 		#set $arg_list = ", ".join($impl.get_native_call_args_with_list($arg_list));
-		#set func_call = "{}::{}({})".format($class_name, $func_name, $arg_list)
+		#set func_call = "{}::{}({})".format($class_name, $impl.func_name, $arg_list)
 		#if $ReturnType == "void"
 			${func_call};
 			return __e->undefinedValue();

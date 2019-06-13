@@ -13,7 +13,7 @@ conversions:
     "@QUrlTwoFlags<.*>": int
     "enum": int
   to_native:
-    "std::string": "std::string(${in_value}.data(), size_t(${in_value}.size())"
+    "std::string": "std::string(${in_value}.data(), size_t(${in_value}.size()))"
     "char*": "${in_value}${'.' if $arg.is_const else '->'}data()"
     "unsigned char*": "reinterpret_cast<${'const ' if $arg.is_const else ''}unsigned char*>(${in_value}${'.' if $arg.is_const else '->'}data())"
     intptr_t: "${in_value}"
@@ -36,7 +36,7 @@ conversions:
   from_native:
     "std::string": "QByteArray(${in_value}.c_str(), int(${in_value}.size()))"
     "char*": "QByteArray(${in_value})"
-    "unsigned char*": "QByteArray(reinterpet_cast<const char*>(${in_value}))"
+    "unsigned char*": "QByteArray(reinterpret_cast<const char*>(${in_value}))"
     intptr_t: "${in_value}"
     uintptr_t: "${in_value}"
     ushort: "${in_value}"

@@ -21,7 +21,7 @@ ${ReturnType} ${signature_name}(${arg_decl_list})
 		#end while
 	auto __o = this->thiz<${class_name} *>();
 		#set arg_list = ", ".join($impl.get_native_call_args($generator, $cur_min_args))
-		#set call_method = "__o->{}({})".format($func_name, $arg_list)
+		#set call_method = "__o->{}({})".format($impl.func_name, $arg_list)
 		#if $ReturnType == "void"
 	if (__o)
 	{

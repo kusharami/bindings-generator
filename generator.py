@@ -484,11 +484,9 @@ class NativeType(object):
                     and not nt.namespaced_name.startswith('std::string') \
                     and not nt.namespaced_name.startswith('std::basic_string'):
                 nt.is_object = True
-                displayname = decl.displayname.replace('::__ndk1', '')
-                displayname = displayname.replace('::__1', '')
-                nt.name = normalize_type_str(displayname)
                 nt.namespaced_name = normalize_type_str(nt.namespaced_name)
                 nt.namespace_name = get_namespace_name(decl)
+                nt.name = nt.namespaced_name[len(nt.namespace_name):]
                 nt.whole_name = nt.namespaced_name
             else:
                 if decl.kind == cindex.CursorKind.NO_DECL_FOUND:
@@ -499,6 +497,8 @@ class NativeType(object):
 
                 if len(nt.namespaced_name) > 0:
                     nt.namespaced_name = normalize_type_str(nt.namespaced_name)
+                    if '::' not in nt.name:
+                        nt.name = nt.namespaced_name[len(nt.namespace_name):]
 
                 if nt.namespaced_name.startswith("std::function"):
                     nt.name = "std::function"
@@ -516,7 +516,7 @@ class NativeType(object):
                 if None != cdecl.spelling and 0 == cmp(cdecl.spelling, "function"):
                     nt.name = "std::function"
 
-                if nt.name != INVALID_NATIVE_TYPE and nt.name != "std::string" and nt.name != "std::function":
+                if nt.name != INVALID_NATIVE_TYPE and nt.namespaced_name != "std::string" and nt.name != "std::function":
                     if ntype.kind == cindex.TypeKind.UNEXPOSED or ntype.kind == cindex.TypeKind.TYPEDEF or ntype.kind == cindex.TypeKind.ELABORATED:
                         ret = NativeType.from_type(ntype.get_canonical())
                         if ret.name != "":
@@ -642,8 +642,8 @@ class NativeType(object):
         keys = []
 
         if self.canonical_type is not None:
-            keys.append(self.canonical_type.name)
-        keys.append(self.name)
+            keys.append(self.canonical_type.namespaced_name)
+        keys.append(self.namespaced_name)
 
         from_native_dict = generator.config['conversions']['from_native']
 
@@ -682,9 +682,9 @@ class NativeType(object):
         generator = convert_opts['generator']
         keys = []
 
-        if self.canonical_type != None:
-            keys.append(self.canonical_type.name)
-        keys.append(self.name)
+        if self.canonical_type is not None:
+            keys.append(self.canonical_type.namespaced_name)
+        keys.append(self.namespaced_name)
 
         to_native_dict = generator.config['conversions']['to_native']
         if self.is_object:
@@ -1369,11 +1369,7 @@ class NativeClass(object):
     def __init__(self, cursor, generator):
         # the cursor to the implementation
         self.cursor = cursor
-        self.class_name = cursor.displayname
-        self.is_base_class = self.class_name in generator.base_classes
         self.base_parent = None
-        self.qtscript_class_name = "QtScript" + underlined_typename(self.class_name)
-        self.namespaced_class_name = self.class_name
         self.parents = []
         self.fields = []
         self.public_fields = []
@@ -1386,7 +1382,6 @@ class NativeClass(object):
         self.static_methods = {}
         self.property_methods = []
         self.generator = generator
-        self.is_abstract = self.class_name in generator.abstract_classes
         self.pure_virtual_methods = []
         self.private_methods = []
         self.public_methods = []
@@ -1401,14 +1396,20 @@ class NativeClass(object):
         self.is_destructor_private = False
         self.all_pure_virtual_methods = None
 
-        registration_name = generator.get_class_or_rename_class(self.class_name)
+        self.namespaced_class_name = get_namespaced_name(cursor)
+        self.namespace_name = get_namespace_name(cursor)
+        self.class_name = self.namespaced_class_name[len(self.namespace_name):]
+
+        self.is_base_class = self.class_name in generator.base_classes
+        self.is_abstract = self.class_name in generator.abstract_classes
+        underlined_class_name = underlined_typename(self.class_name)
+        self.qtscript_class_name = "QtScript" + underlined_class_name
+
+        registration_name = generator.get_class_or_rename_class(underlined_class_name)
         if generator.remove_prefix:
             self.target_class_name = re.sub('^' + generator.remove_prefix, '', registration_name)
         else:
             self.target_class_name = registration_name
-
-        self.namespaced_class_name = get_namespaced_name(cursor)
-        self.namespace_name = get_namespace_name(cursor)
         self.parse()
 
     @property
@@ -2173,7 +2174,7 @@ class Generator(object):
     def iterate_class(self, cursor):
         if cursor == cursor.type.get_declaration() and len(get_children_array_from_iter(cursor.get_children())) > 0:
             namespaced_class_name = get_namespaced_name(cursor)
-            if self.is_targeted_class(namespaced_class_name) and self.in_listed_classes(cursor.displayname):
+            if cursor.displayname and self.is_targeted_class(namespaced_class_name) and self.in_listed_classes(cursor.displayname):
                 if not self.generated_classes.has_key(namespaced_class_name):
                     nclass = NativeClass(cursor, self)
                     nclass.generate_code()
