@@ -2400,6 +2400,7 @@ def main():
     cindex.Config.set_library_path(clang_lib_path);
 
     config = ConfigParser.SafeConfigParser()
+    config.set("DEFAULT", "current_dir", os.path.dirname(args[0]))
     config.read(args[0])
 
     if (0 == len(config.sections())):
