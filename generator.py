@@ -2040,7 +2040,7 @@ class Generator(object):
     def should_bind_field(self, class_name, field_name, verbose=False):
         if class_name == "*" and self.bind_fields.has_key("*"):
             for func in self.bind_fields["*"]:
-                if re.match(func, method_name):
+                if re.match(func, field_name):
                     return True
         else:
             for key in self.bind_fields.iterkeys():
