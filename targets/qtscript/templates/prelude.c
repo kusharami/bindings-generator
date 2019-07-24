@@ -26,8 +26,11 @@ ${ClassName}::${ClassName}(QScriptEngine *engine)
 
 void ${ClassName}::Register(const QScriptValue &targetNamespace)
 {
+#set static_methods = $current_class.static_methods_clean()
+#if $has_base_parent or $static_methods
 	auto engine = targetNamespace.engine();
 	Q_ASSERT(engine);
+#end if	
 #if $has_base_parent
 	auto inherit = engine->defaultPrototype(qMetaTypeId<${current_class.base_parent.class_name} *>());
 #else
@@ -35,7 +38,7 @@ void ${ClassName}::Register(const QScriptValue &targetNamespace)
 #end if
 	auto ctor = RegisterT<${current_class.class_name}, ${ClassName}>(targetNamespace, inherit);
 	Q_ASSERT(ctor.isFunction());
-#for m in $current_class.static_methods_clean():
+#for m in $static_methods:
 	ctor.setProperty("${m['name']}", engine->newFunction(
 		static_cast<QScriptValue (*)(QScriptContext *, QScriptEngine *)>(
 			&${ClassName}::${m['name']})),
