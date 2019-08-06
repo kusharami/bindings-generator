@@ -962,8 +962,8 @@ class NativeFunction(object):
                                 has_copy_argument(min_args, max_args, arguments, cls)
 
         if self.registration_name == '0':
+            self.registration_name = self.func_name
             self.not_supported = True
-            return
 
         argument_names = []
         arg_idx = 0
@@ -1113,8 +1113,8 @@ class NativeFunction(object):
 
         cls = cls.base_parent
         while cls is not None:
-            if self.registration_name in cls.methods:
-                parent_m = cls.methods[self.registration_name]
+            if self.registration_name in cls.all_methods:
+                parent_m = cls.all_methods[self.registration_name]
 
                 if isinstance(parent_m, NativeOverloadedFunction):
                     for parent_mimpl in parent_m.implementations:
@@ -1366,7 +1366,7 @@ def insert_method(m, to):
 
 
 class NativeClass(object):
-    def __init__(self, cursor, generator):
+    def __init__(self, cursor, generator, parse_if_not_listed):
         # the cursor to the implementation
         self.cursor = cursor
         self.base_parent = None
@@ -1374,6 +1374,7 @@ class NativeClass(object):
         self.fields = []
         self.public_fields = []
         self.methods = {}
+        self.all_methods = {}
         self.private_constructors = []
         self.constructor = None
         self.has_default_constructor = False
@@ -1411,7 +1412,11 @@ class NativeClass(object):
             self.target_class_name = re.sub('^' + generator.remove_prefix, '', registration_name)
         else:
             self.target_class_name = registration_name
-        self.parse()
+
+        if parse_if_not_listed or generator.in_listed_classes(self.class_name):
+            self.parse()
+        else:
+            self.is_parsed = False
 
     @property
     def namespace_name_no_suffix(self):
@@ -1443,6 +1448,7 @@ class NativeClass(object):
         '''
         parse the current cursor, getting all the necesary information
         '''
+        self.is_parsed = True
         self._deep_iterate(self.cursor)
         self._init_property_methods()
         self.get_all_pure_virtual_methods()
@@ -1721,7 +1727,7 @@ class NativeClass(object):
             if namespaced_parent_class_name and self.class_name not in self.generator.classes_have_no_parents and \
                     namespaced_parent_class_name not in self.generator.base_classes_to_skip:
                 if not self.generator.generated_classes.has_key(namespaced_parent_class_name):
-                    parent = NativeClass(parent, self.generator)
+                    parent = NativeClass(parent, self.generator, parse_if_not_listed=True)
                     self.generator.generated_classes[namespaced_parent_class_name] = parent
                 else:
                     parent = self.generator.generated_classes[namespaced_parent_class_name]
@@ -1776,7 +1782,10 @@ class NativeClass(object):
             if not cursor.type.is_function_variadic():
                 m = NativeFunction(cursor, is_constructor=False, cls=self)
 
-                if self._current_visibility != cindex.AccessSpecifier.PUBLIC:
+                if not m.is_pure_virtual and (self._current_visibility == cindex.AccessSpecifier.PUBLIC \
+                    or m.is_override):
+                    insert_method(m, self.all_methods)
+                if m.not_supported or self._current_visibility != cindex.AccessSpecifier.PUBLIC:
                     self.private_methods.append(m)
                 else:
                     self.public_methods.append(m)
@@ -2196,9 +2205,11 @@ class Generator(object):
     def iterate_class(self, cursor):
         if cursor == cursor.type.get_declaration() and len(get_children_array_from_iter(cursor.get_children())) > 0:
             namespaced_class_name = get_namespaced_name(cursor)
-            if cursor.displayname and self.is_targeted_class(namespaced_class_name) and self.in_listed_classes(cursor.displayname):
+            if cursor.displayname and self.is_targeted_class(namespaced_class_name):
                 if not self.generated_classes.has_key(namespaced_class_name):
-                    nclass = NativeClass(cursor, self)
+                    nclass = NativeClass(cursor, self, parse_if_not_listed=False)
+                    if not nclass.is_parsed:
+                        return False
                     nclass.generate_code()
                     self.generated_classes[namespaced_class_name] = nclass
                 return True
