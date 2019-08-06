@@ -1405,7 +1405,7 @@ class NativeClass(object):
         underlined_class_name = underlined_typename(self.class_name)
         self.qtscript_class_name = "QtScript" + underlined_class_name
 
-        registration_name = generator.get_class_or_rename_class(underlined_class_name)
+        registration_name = generator.get_class_or_rename_class(self.class_name)
         if generator.remove_prefix:
             self.target_class_name = re.sub('^' + generator.remove_prefix, '', registration_name)
         else:
@@ -1967,7 +1967,7 @@ class Generator(object):
         if opts['rename_classes']:
             list_of_class_renames = re.split(",\n?", opts['rename_classes'])
             for rename in list_of_class_renames:
-                class_name, renamed_class_name = rename.split("::")
+                class_name, renamed_class_name = rename.split("@")
                 self.rename_classes[class_name] = renamed_class_name
 
         if opts['replace_headers']:
