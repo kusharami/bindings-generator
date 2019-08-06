@@ -2,9 +2,7 @@
 namespace ${namespace_name} {
 #end for
 #set ClassName = $current_class.qtscript_class_name
-#set has_base_parent = $current_class.base_parent is not None and \
-	not $current_class.is_inplace_class and \
-	$current_class.is_inplace_class == $current_class.base_parent.is_inplace_class
+#set has_base_parent = $current_class.has_base_parent
 #if $has_base_parent
 	#set ParentClassName = $current_class.base_parent.qtscript_class_name
 #else
@@ -57,10 +55,26 @@ int ${ClassName}::constructorArgumentCountMax() const
 	return 0;
 }
 
-bool ${ClassName}::constructObject(QScriptContext *context, NativeObjectType &)
+bool ${ClassName}::constructObject(QScriptContext *context, NativeObjectType &out)
 {
+	#if $current_class.is_default_constructable
+	if (context->argumentCount() == 0)
+	{
+		#if not $current_class.is_inplace_class
+		out = new ${current_class.class_name};
+		#else
+		Q_UNUSED(out);
+		#end if
+		return true;
+	}
+
+	QtScriptUtils::badArgumentsException(context,
+		"${current_class.namespaced_class_name} constructor");
+	#else
+	Q_UNUSED(out);
 	QtScriptUtils::noPublicConstructorException(context,
 		"${current_class.namespaced_class_name}");
+	#end if
 	return false;
 }
 

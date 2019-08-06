@@ -3,10 +3,7 @@ namespace ${namespace_name} {
 #end for
 #set ClassName = $current_class.qtscript_class_name
 #set ClassModifier = ""
-#set has_base_parent = $current_class.base_parent is not None and \
-	not $current_class.is_inplace_class and \
-	$current_class.is_inplace_class == $current_class.base_parent.is_inplace_class
-#if $has_base_parent
+#if $current_class.has_base_parent
 	#set ParentClassName = $current_class.base_parent.qtscript_class_name
 #else
 	#set native_object_type = $current_class.class_name

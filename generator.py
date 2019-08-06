@@ -1392,6 +1392,7 @@ class NativeClass(object):
         self.override_methods = {}
         self.namespace_name = ""
         self.is_code_generated = False
+        self.has_virtual_methods = False
         self.has_virtual_destructor = False
         self.is_destructor_private = False
         self.all_pure_virtual_methods = None
@@ -1448,18 +1449,28 @@ class NativeClass(object):
         self._check_constructor()
 
     @property
+    def is_default_constructable(self):
+        return self.has_default_constructor and not self.is_abstract and not self.is_destructor_private
+
+    @property
     def is_inplace_class(self):
         return (self.has_copy_constructor or self.has_copy_operator) and \
-               self.has_default_constructor and not self.has_virtual_destructor and not self.is_abstract
+            not self.has_virtual_methods and self.is_default_constructable
+
+    @property
+    def has_base_parent(self):
+        return self.base_parent is not None \
+            and self.base_parent.has_virtual_destructor \
+            and not self.is_inplace_class \
+            and not self.base_parent.is_inplace_class
 
     def _check_constructor(self):
         self.has_default_constructor = True
         self.has_copy_constructor = True
         for c in self.private_constructors:
-            if c.real_min_args == 0:
-                self.has_default_constructor = False
-                if not self.has_copy_constructor:
-                    break
+            self.has_default_constructor = False
+            if not self.has_copy_constructor:
+                break
 
             if c.is_copy_operator:
                 self.has_copy_constructor = False
@@ -1715,6 +1726,9 @@ class NativeClass(object):
                 else:
                     parent = self.generator.generated_classes[namespaced_parent_class_name]
 
+                if parent.has_virtual_methods:
+                    self.has_virtual_methods = True
+
                 if parent.has_virtual_destructor:
                     self.has_virtual_destructor = True
 
@@ -1751,7 +1765,13 @@ class NativeClass(object):
                                 content == 'Q_SIGNALS:' or content == 'signals':
                             self._current_visibility = cindex.AccessSpecifier.PRIVATE
 
-        elif cursor.kind == cindex.CursorKind.CXX_METHOD and get_availability(cursor) != AvailabilityKind.DEPRECATED:
+        elif cursor.kind == cindex.CursorKind.CXX_METHOD:
+            if cursor.is_virtual_method():
+                self.has_virtual_methods = True
+
+            if get_availability(cursor) == AvailabilityKind.DEPRECATED:
+                return
+
             # skip if variadic
             if not cursor.type.is_function_variadic():
                 m = NativeFunction(cursor, is_constructor=False, cls=self)
@@ -1785,7 +1805,9 @@ class NativeClass(object):
 
         elif cursor.kind == cindex.CursorKind.DESTRUCTOR:
             if cursor.is_virtual_method():
+                self.has_virtual_methods = True
                 self.has_virtual_destructor = True
+
             self.is_destructor_private = self._current_visibility != cindex.AccessSpecifier.PUBLIC
 
         elif cursor.kind == cindex.CursorKind.CONSTRUCTOR and not self.is_abstract:
