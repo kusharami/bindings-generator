@@ -1790,13 +1790,13 @@ class NativeClass(object):
                 else:
                     self.public_methods.append(m)
 
-                # bail if the function is not supported (at least one arg not supported)
-                if m.not_supported:
-                    return
-
                 if m.is_pure_virtual:
                     self.is_abstract = True
                     self.pure_virtual_methods.append(m)
+                    return
+
+                # bail if the function is not supported (at least one arg not supported)
+                if m.not_supported:
                     return
 
                 if self._current_visibility != cindex.AccessSpecifier.PUBLIC:
