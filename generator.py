@@ -1593,10 +1593,7 @@ class NativeClass(object):
 
             impl.is_property_method = True
             getter.is_property_method = True
-            prop = {}
-            prop["name"] = property_name
-            prop["setter"] = impl
-            prop["getter"] = getter
+            prop = {"name": property_name, "setter": impl, "getter": getter}
             self.property_methods.append(prop)
 
     def methods_clean(self):
@@ -1609,7 +1606,7 @@ class NativeClass(object):
                 continue
 
             ret.append({"name": name, "impl": impl})
-        return ret
+        return sorted(ret, key=lambda entry: entry['name'])
 
     def static_methods_clean(self):
         '''
@@ -1620,7 +1617,7 @@ class NativeClass(object):
             should_skip = self.generator.should_skip(self.class_name, name)
             if not should_skip:
                 ret.append({"name": name, "impl": impl})
-        return ret
+        return sorted(ret, key=lambda entry: entry['name'])
 
     def override_methods_clean(self):
         '''
@@ -1663,7 +1660,7 @@ class NativeClass(object):
         self.generator.head_file.write(str(prelude_h))
         self.generator.impl_file.write(str(prelude_c))
 
-        for entry in self.property_methods:
+        for entry in self.property_methods_sorted():
             self.generate_qtproperty_declaration(entry)
 
         for m in self.methods_clean():
@@ -1675,7 +1672,7 @@ class NativeClass(object):
         if self.constructor:
             self.constructor.generate_code(self)
 
-        for m in self.public_fields:
+        for m in self.public_fields_sorted():
             if self.generator.should_bind_field(self.class_name, m.name):
                 m.generate_code(self)
         # generate register section
@@ -1700,6 +1697,12 @@ class NativeClass(object):
         #                                searchList=[{"current_class": self}])
         #     self.doc_func_file.write(str(apidoc_fun_foot_script))
         #     self.doc_func_file.close()
+
+    def public_fields_sorted(self):
+        return sorted(self.public_fields, key=lambda field: field.name)
+
+    def property_methods_sorted(self):
+        return sorted(self.property_methods, key=lambda m: m['name'])
 
     def _deep_iterate(self, cursor=None):
         for node in cursor.get_children():
