@@ -2424,28 +2424,36 @@ def main():
     if len(args) == 0:
         parser.error('invalid number of arguments')
 
-    userconfig = ConfigParser.SafeConfigParser()
+    userconfig = ConfigParser.SafeConfigParser(
+        defaults={
+            key: value
+            for key, value in os.environ.iteritems()
+        })
     userconfig.read('userconf.ini')
-    print 'Using userconfig \n ', userconfig.items('DEFAULT')
+    print('Using userconfig:\n' + '\n'.join([
+        "{} = {}".format(key, value)
+        for key, value in userconfig.items('DEFAULT')
+    ]))
 
-    clang_lib_path = os.environ['LIB_CLANG_DIR'] if 'LIB_CLANG_DIR' in os.environ else ""
-    if not clang_lib_path:
-        clang_lib_path = os.path.abspath(userconfig.get('DEFAULT', 'libclangdir') \
-                                             if userconfig.has_option('DEFAULT', 'libclangdir') else \
-                                             os.path.join(os.path.dirname(sys.argv[0]), 'libclang'))
+    clang_lib_path = None
+    if userconfig.has_option('DEFAULT', 'libclangdir'):
+        clang_lib_path = os.path.abspath(
+            userconfig.get('DEFAULT', 'libclangdir'))
+    if clang_lib_path is None or not os.path.isdir(clang_lib_path):
+        clang_lib_path = os.path.abspath(
+            os.path.join(os.path.dirname(sys.argv[0]), 'libclang'))
     cindex.Config.set_library_path(clang_lib_path);
 
     config = ConfigParser.SafeConfigParser()
     config.set("DEFAULT", "current_dir", os.path.dirname(args[0]))
     config.read(args[0])
 
-    if (0 == len(config.sections())):
+    if 0 == len(config.sections()):
         raise Exception("No sections defined in config file")
 
     sections = []
     if opts.section:
-        if (opts.section in config.sections()):
-            sections = []
+        if opts.section in config.sections():
             sections.append(opts.section)
         else:
             raise Exception("Section not found in config file")
@@ -2456,16 +2464,19 @@ def main():
     # find available targets
     targetdir = os.path.join(workingdir, "targets")
     targets = []
-    if (os.path.isdir(targetdir)):
-        targets = [entry for entry in os.listdir(targetdir)
-                   if (os.path.isdir(os.path.join(targetdir, entry)))]
+    if os.path.isdir(targetdir):
+        targets = [
+            entry
+            for entry in os.listdir(targetdir)
+            if not entry.startswith(".") and os.path.isdir(
+                os.path.join(targetdir, entry))
+        ]
     if 0 == len(targets):
         raise Exception("No targets defined")
 
     if opts.target:
-        if (opts.target in targets):
-            targets = []
-            targets.append(opts.target)
+        if opts.target in targets:
+            targets = [opts.target]
 
     if opts.outdir:
         outdir = opts.outdir
@@ -2475,10 +2486,6 @@ def main():
         os.makedirs(outdir)
 
     for t in targets:
-        # Fix for hidden '.svn', '.cvs' and '.git' etc. folders - these must be ignored or otherwise they will be interpreted as a target.
-        if t == ".svn" or t == ".cvs" or t == ".git" or t == ".gitignore":
-            continue
-
         print "\n.... Generating bindings for target", t
         for s in sections:
             gen_opts = {
