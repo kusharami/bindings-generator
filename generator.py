@@ -572,12 +572,21 @@ class NativeType(object):
             nt.is_const = True
             displayname = displayname[6:]
         displayname = displayname.strip()
-        nt.whole_name = 'const ' + displayname if nt.is_const else displayname
+        amp_count = 0
         while displayname.endswith('&'):
-            displayname = displayname[:-1]
+            displayname = displayname[:-1].strip()
+            amp_count += 1
 
-        if displayname.endswith('*'):
+        stars_count = 0
+        while displayname.endswith('*'):
             nt.is_pointer = True
+            displayname = displayname[:-1].strip()
+            stars_count += 1
+
+        if stars_count > 0:
+            displayname += '*' * stars_count
+        nt.whole_name = 'const ' + displayname if nt.is_const else displayname
+        nt.whole_name += '&' * amp_count
 
         split_name = displayname.split("::")
         nt.namespace_name = '::'.join(split_name[:-1])
@@ -919,7 +928,7 @@ class NativeFunction(object):
         reg_params = None
         should_rename = False
 
-        obj_arr = cls.generator.should_rename_function(cls.class_name, self.func_name)
+        obj_arr = cls.generator.should_rename_function(cls, self.func_name)
         if obj_arr is not None:
             for obj in obj_arr:
                 rename_args = obj['args']
@@ -1404,16 +1413,18 @@ class NativeClass(object):
 
         self.is_base_class = self.class_name in generator.base_classes
         self.is_abstract = self.class_name in generator.abstract_classes
-        underlined_class_name = underlined_typename(self.class_name)
-        self.qtscript_class_name = "QtScript" + underlined_class_name
 
-        registration_name = generator.get_class_or_rename_class(self.class_name)
+        registration_name = generator.get_class_or_rename_class(
+            self.class_name, self.namespaced_class_name)
+
+        underlined_class_name = underlined_typename(registration_name)
+        self.qtscript_class_name = "QtScript" + underlined_class_name
         if generator.remove_prefix:
             self.target_class_name = re.sub('^' + generator.remove_prefix, '', registration_name)
         else:
             self.target_class_name = registration_name
 
-        if parse_if_not_listed or generator.in_listed_classes(self.class_name):
+        if parse_if_not_listed or generator.in_listed_classes(self):
             self.parse()
         else:
             self.is_parsed = False
@@ -1552,7 +1563,7 @@ class NativeClass(object):
 
         methods = all_methods(self.methods.itervalues())
         for impl in methods:
-            if self.generator.should_skip(self.class_name, impl.registration_name):
+            if self.generator.should_skip_method(self, impl.registration_name):
                 continue
 
             property_name = to_property_name('set', impl.registration_name)
@@ -1567,7 +1578,7 @@ class NativeClass(object):
                 if getter_impl.registration_name == impl.registration_name:
                     continue
 
-                if self.generator.should_skip(self.class_name, getter_impl.registration_name):
+                if self.generator.should_skip_method(self, getter_impl.registration_name):
                     continue
 
                 if getter_impl.min_args > 0:
@@ -1602,7 +1613,7 @@ class NativeClass(object):
         '''
         ret = []
         for name, impl in self.methods.iteritems():
-            if self.generator.should_skip(self.class_name, name):
+            if self.generator.should_skip_method(self, name):
                 continue
 
             ret.append({"name": name, "impl": impl})
@@ -1614,7 +1625,7 @@ class NativeClass(object):
         '''
         ret = []
         for name, impl in self.static_methods.iteritems():
-            should_skip = self.generator.should_skip(self.class_name, name)
+            should_skip = self.generator.should_skip_method(self, name)
             if not should_skip:
                 ret.append({"name": name, "impl": impl})
         return sorted(ret, key=lambda entry: entry['name'])
@@ -1625,7 +1636,7 @@ class NativeClass(object):
         '''
         ret = []
         for name, impl in self.override_methods.iteritems():
-            should_skip = self.generator.should_skip(self.class_name, name)
+            should_skip = self.generator.should_skip_method(self, name)
             if not should_skip:
                 ret.append({"name": name, "impl": impl})
         return ret
@@ -1673,7 +1684,7 @@ class NativeClass(object):
             self.constructor.generate_code(self)
 
         for m in self.public_fields_sorted():
-            if self.generator.should_bind_field(self.class_name, m.name):
+            if self.generator.should_bind_field(self, m.name):
                 m.generate_code(self)
         # generate register section
         register_h = Template(file=os.path.join(self.generator.target, "templates", "register.h"),
@@ -1774,7 +1785,7 @@ class NativeClass(object):
                                 content == 'Q_SIGNALS:' or content == 'signals':
                             self._current_visibility = cindex.AccessSpecifier.PRIVATE
 
-        elif cursor.kind == cindex.CursorKind.CXX_METHOD:
+        elif cursor.kind == cindex.CursorKind.CXX_METHOD or cursor.kind == cindex.CursorKind.CONVERSION_FUNCTION:
             if cursor.is_virtual_method():
                 self.has_virtual_methods = True
 
@@ -1785,10 +1796,11 @@ class NativeClass(object):
             if not cursor.type.is_function_variadic():
                 m = NativeFunction(cursor, is_constructor=False, cls=self)
 
-                if not m.is_pure_virtual and (self._current_visibility == cindex.AccessSpecifier.PUBLIC \
-                    or m.is_override):
+                if (self._current_visibility == cindex.AccessSpecifier.PUBLIC
+                        or m.is_override):
                     insert_method(m, self.all_methods)
-                if m.not_supported or self._current_visibility != cindex.AccessSpecifier.PUBLIC:
+                if (self._current_visibility != cindex.AccessSpecifier.PUBLIC
+                        or m.not_supported):
                     self.private_methods.append(m)
                 else:
                     self.public_methods.append(m)
@@ -1796,7 +1808,6 @@ class NativeClass(object):
                 if m.is_pure_virtual:
                     self.is_abstract = True
                     self.pure_virtual_methods.append(m)
-                    return
 
                 # bail if the function is not supported (at least one arg not supported)
                 if m.not_supported:
@@ -1846,10 +1857,18 @@ def get_function_decl_with_params(k):
     ret_type = None
     native_args = None
     begin = k.find('(')
+    end = 0
+    func_name = ''
     if begin >= 0:
         end = k.find(')')
         assert end > begin
         func_name = k[:begin]
+        if func_name == 'operator':
+            func_name = 'operator()'
+            begin = k.find('(', end)
+            end = k.find(')', end)
+
+    if begin >= 0:
         args = []
         s = k[begin + 1:end].strip()
         if s:
@@ -1938,31 +1957,34 @@ class Generator(object):
             self.clang_args.extend(self.win32_clang_flags)
 
         if opts['skip_methods']:
-            list_of_skips = re.split(",\n?", opts['skip_methods'])
+            list_of_skips = re.split(";\n?", opts['skip_methods'])
             for skip in list_of_skips:
-                class_name, methods = skip.split("::")
-                self.skip_methods[class_name] = []
-                match = re.match("\[([^]]+)\]", methods)
-                if match:
-                    self.skip_methods[class_name] = match.group(1).split(" ")
-                else:
-                    raise Exception("invalid list of skip methods")
+                pos = skip.find("@")
+                if pos <= 0:
+                    raise Exception("invalid list of skip_methods")
+
+                class_name = skip[:pos].strip()
+                list_of_methods = skip[pos + 1:].strip().split('#')
+                self.skip_methods[class_name] = list_of_methods
+
+                if len(list_of_methods) == 0:
+                    raise Exception("no skip_methods for {}".format(class_name))
 
         if opts['skip_classes']:
-            self.skip_classes = opts['skip_classes'].split(' ')
+            self.skip_classes = opts['skip_classes'].split()
 
         if opts['ignore_metatypes']:
-            self.ignore_metatypes = opts['ignore_metatypes'].split(' ')
+            self.ignore_metatypes = opts['ignore_metatypes'].split()
 
         if opts['field']:
             list_of_fields = opts['field'].split(';')
             for field in list_of_fields:
-                pos = field.find("::")
+                pos = field.find("@")
                 if pos <= 0:
                     raise Exception("invalid list of fields")
 
                 class_name = field[:pos].strip()
-                list_of_fields = field[pos + 2:].strip().split('#')
+                list_of_fields = field[pos + 1:].strip().split('#')
                 self.bind_fields[class_name] = list_of_fields
 
                 if len(list_of_fields) == 0:
@@ -1971,22 +1993,25 @@ class Generator(object):
         if opts['rename_functions']:
             list_of_function_renames = opts['rename_functions'].split(";")
             for rename in list_of_function_renames:
-                pos = rename.find("::")
+                pos = rename.find("@")
                 if pos <= 0:
                     raise Exception("invalid list of rename methods")
 
                 class_name = rename[:pos].strip()
-                list_of_methods = rename[pos + 2:].strip().split('#')
+                list_of_methods = rename[pos + 1:].strip().split('#')
                 self.rename_functions[class_name] = {}
                 if len(list_of_methods) == 0:
-                    raise Exception("no methods to rename")
+                    raise Exception("no methods to rename for {}".format(
+                        class_name))
                 for pair in list_of_methods:
                     split = pair.split("@")
                     if len(split) == 2:
                         k = split[0]
                         v = split[1]
                     else:
-                        raise Exception("invalid list of rename methods (should separate with @)")
+                        raise Exception(
+                            "invalid list of rename methods "
+                            "(should separate with @) for {}".format(class_name))
 
                     obj = get_function_decl_with_params(k)
                     obj['to'] = get_function_decl_with_params(v)
@@ -1999,24 +2024,31 @@ class Generator(object):
                     m[func_name].append(obj)
 
         if opts['rename_classes']:
-            list_of_class_renames = re.split(",\n?", opts['rename_classes'])
+            list_of_class_renames = re.split(";\n?", opts['rename_classes'])
             for rename in list_of_class_renames:
                 class_name, renamed_class_name = rename.split("@")
-                self.rename_classes[class_name] = renamed_class_name
+                self.rename_classes[class_name.strip()] = renamed_class_name.strip()
 
         if opts['replace_headers']:
-            list_of_replace_headers = re.split(",\n?", opts['replace_headers'])
+            list_of_replace_headers = re.split(";\n?", opts['replace_headers'])
             for replace in list_of_replace_headers:
-                header, replaced_header = replace.split("::")
+                header, replaced_header = replace.split("@")
+                header = header.strip()
+                replaced_header = replaced_header.strip()
                 if not (replaced_header.startswith("<") and replaced_header.endswith(">")):
                     replaced_header = '"' + replaced_header + '"'
                 self.replace_headers[header] = replaced_header
 
-    def should_rename_function(self, class_name, method_name):
+    def should_rename_function(self, cls, method_name):
         for cls_re, map in self.rename_functions.iteritems():
-            if cls_re == '*' or re.match("^" + cls_re + "$", class_name):
-                if method_name in map:
-                    return map[method_name]
+            is_match = cls_re == '*'
+            if not is_match:
+                pattern = re.compile("^" + cls_re + "$")
+                if pattern.match(cls.namespaced_class_name) \
+                        or pattern.match(cls.class_name):
+                    is_match = True
+            if is_match and method_name in map:
+                return map[method_name]
         return None
 
     def is_targeted_class(self, namespaced_class_name):
@@ -2031,75 +2063,70 @@ class Generator(object):
 
         return True
 
-    def get_class_or_rename_class(self, class_name):
-        if self.rename_classes.has_key(class_name):
-            # print >> sys.stderr, "will rename %s to %s" % (method_name, self.rename_functions[class_name][method_name])
+    def get_class_or_rename_class(self, class_name, namespaced_class_name):
+        if namespaced_class_name in self.rename_classes:
+            class_name = self.rename_classes[namespaced_class_name]
+        elif class_name in self.rename_classes:
             class_name = self.rename_classes[class_name]
         return underlined_typename(class_name)
 
-    def should_skip_class(self, class_name):
+    def should_skip_class(self, cls):
         for key in self.skip_classes:
             if not key:
                 continue
 
-            if re.match('^' + key + '$', class_name):
+            pattern = re.compile('^' + key + '$')
+            if pattern.match(cls.namespaced_class_name) or pattern.match(
+                    cls.class_name):
                 return True
 
         return False
 
-    def should_skip(self, class_name, method_name, verbose=False):
-        if class_name == "*" and self.skip_methods.has_key("*"):
-            for func in self.skip_methods["*"]:
-                if re.match(func, method_name):
-                    return True
-        else:
-            for key in self.skip_methods.iterkeys():
-                if key == "*" or re.match("^" + key + "$", class_name):
-                    if verbose:
-                        print "%s in skip_classes" % (class_name)
-                    if len(self.skip_methods[key]) == 1 and self.skip_methods[key][0] == "*":
-                        if verbose:
-                            print "%s will be skipped completely" % (class_name)
-                        return True
+    def should_skip_method(self, cls, method_name):
+        for key in self.skip_methods.iterkeys():
+            is_match = key == '*'
 
-                    for func in self.skip_methods[key]:
-                        if re.match(func, method_name):
-                            if verbose:
-                                print "%s will skip method %s" % (class_name, method_name)
+            if not is_match:
+                pattern = re.compile("^" + key + "$")
+                if pattern.match(cls.namespaced_class_name) or pattern.match(
+                    cls.class_name):
+                    is_match = True
+
+            if is_match:
+                skip_methods = self.skip_methods[key]
+                if len(skip_methods) == 1 and skip_methods[0] == "*":
+                    return True
+
+                for func in skip_methods:
+                    if re.match(func, method_name):
+                        return True
+        return False
+
+    def should_bind_field(self, cls, field_name):
+        for key in self.bind_fields.iterkeys():
+            is_match = key == '*'
+            if not is_match:
+                pattern = re.compile("^" + key + "$")
+                if pattern.match(cls.namespaced_class_name) or pattern.match(
+                        cls.class_name):
+                    is_match = True
+
+            if is_match:
+                bind_fields = self.bind_fields[key]
+                if len(bind_fields) == 1 and bind_fields[0] == "*":
+                    return True
+                if field_name is not None:
+                    for field in bind_fields:
+                        if re.match(field, field_name):
                             return True
-        if verbose:
-            print "%s will be accepted (%s, %s)" % (class_name, key, self.skip_methods[key])
         return False
 
-    def should_bind_field(self, class_name, field_name, verbose=False):
-        if class_name == "*" and self.bind_fields.has_key("*"):
-            for func in self.bind_fields["*"]:
-                if re.match(func, field_name):
-                    return True
-        else:
-            for key in self.bind_fields.iterkeys():
-                if key == "*" or re.match("^" + key + "$", class_name):
-                    if verbose:
-                        print "%s in bind_fields" % (class_name)
-                    if len(self.bind_fields[key]) == 1 and self.bind_fields[key][0] == "*":
-                        if verbose:
-                            print "All public fields of %s will be bound" % (class_name)
-                        return True
-                    if field_name is not None:
-                        for field in self.bind_fields[key]:
-                            if re.match(field, field_name):
-                                if verbose:
-                                    print "Field %s of %s will be bound" % (field_name, class_name)
-                                return True
-        return False
-
-    def in_listed_classes(self, class_name):
-        """
-        returns True if the class is in the list of required classes and it's not in the skip list
-        """
+    def in_listed_classes(self, cls):
         for key in self.classes:
-            md = re.match("^" + key + "$", class_name)
-            if md and not self.should_skip_class(class_name):
+            pattern = re.compile("^" + key + "$")
+            md = pattern.match(cls.namespaced_class_name) or pattern.match(
+                cls.class_name)
+            if md and not self.should_skip_class(cls):
                 return True
         return False
 
