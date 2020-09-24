@@ -1,5 +1,5 @@
 #set ReturnType = $ret_type.namespaced_name
-[=](${lambda_parameters}) -> $ReturnType
+[=](${lambda_parameters}) mutable -> $ReturnType
 {
 #set arg_idx = 0
 #set arg_count = len($param_types)
@@ -13,7 +13,7 @@
 				"default": $arg_name
 			})});
 	#set $arg_idx += 1
-#end while	
+#end while
 #set from_qtscript = $in_value + '.call(QScriptValue(), arguments)'
 #if $ReturnType == "void"
 	${from_qtscript};
