@@ -1,4 +1,5 @@
 #set ReturnType = $ntype.to_string($generator)
+#if not $ntype.is_function
 ${ReturnType} ${qtscript_class_name}::_public_field_get_${pretty_name}() const
 {
 	auto object = thiz<${class_name} *>();
@@ -25,12 +26,17 @@ ${ReturnType} ${qtscript_class_name}::_public_field_get_${pretty_name}() const
 	return ${ReturnType}();
 #end if
 }
+#end if
 
 #set arg_t = $ReturnType
-#if $ntype.is_object or $ntype.is_function:
+#if $ntype.is_function
+void ${qtscript_class_name}::set${pretty_name.capitalize()}(${arg_t} value)
+#else
+#if $ntype.is_object:
 	#set $arg_t = 'const ' + $ReturnType + '&'
 #end if
 void ${qtscript_class_name}::_public_field_set_${pretty_name}(${arg_t} value)
+#end if
 {
 	auto object = thiz<${class_name} *>();
 	if (object)
