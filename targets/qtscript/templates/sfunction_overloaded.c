@@ -59,7 +59,8 @@ QScriptValue ${signature_name}(QScriptContext *context, QScriptEngine* __e)
 			return __e->toScriptValue(${impl.ret_type.from_native({
 				"generator": $generator,
 				"in_value": $func_call,
-				"default": $func_call
+				"default": $func_call,
+				"this_method": $impl
 			})});
 		#end if
 		#set $implemented = True

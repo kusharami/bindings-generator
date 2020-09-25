@@ -33,7 +33,8 @@ ${ReturnType} ${signature_name}(${arg_decl_list})
 		#set ret_value = $impl.ret_type.from_native({
 				"generator": $generator,
 				"in_value": $call_method,
-				"default": $call_method
+				"default": $call_method,
+				"this_method": $impl
 			})
 		#if $impl.ret_type.is_const and $ReturnType.endswith('*')
 			#set $ret_value = 'const_cast<{}>({})'.format($ReturnType, $ret_value)

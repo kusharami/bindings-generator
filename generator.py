@@ -470,7 +470,7 @@ class NativeType(object):
             if nt.is_const:
                 nt.whole_name = "const " + nt.whole_name
 
-            if None != nt.canonical_type:
+            if nt.canonical_type is not None:
                 nt.canonical_type.whole_name += "&"
         else:
             nt = NativeType()
@@ -648,6 +648,7 @@ class NativeType(object):
     def from_native(self, convert_opts):
         assert (convert_opts.has_key('generator'))
         generator = convert_opts['generator']
+        this_method = convert_opts.get('this_method', None)
         keys = []
 
         if self.canonical_type is not None:
@@ -674,6 +675,10 @@ class NativeType(object):
 
         if result is None:
             return "#pragma warning NO CONVERSION FROM NATIVE FOR " + self.name
+
+        if (this_method is not None
+                and this_method.native_call_return is not None):
+            return this_method.native_call_return.format(result)
 
         if self.should_cast:
             if self.is_object:
@@ -776,11 +781,12 @@ class NativeType(object):
                     name = to_replace + '*'
             else:
                 name = to_replace
-                if self.whole_name.endswith('&'):
-                    name += '&'
+                if not self.is_function or generator.script_type != "qtscript":
+                    if self.whole_name.endswith('&'):
+                        name += '&'
 
-                if self.is_const:
-                    name = 'const ' + name
+                    if self.is_const:
+                        name = 'const ' + name
         else:
             to_native_dict = conversions['to_native']
             from_native_dict = conversions['from_native']
@@ -788,7 +794,7 @@ class NativeType(object):
             name = self.whole_name
             typedef_name = self.canonical_type.name if None != self.canonical_type else None
 
-            if None != typedef_name:
+            if typedef_name is not None:
                 if NativeType.dict_has_key_re(to_native_dict, [typedef_name]) or NativeType.dict_has_key_re(
                         from_native_dict, [typedef_name]):
                     use_typedef = True
@@ -952,7 +958,6 @@ class NativeFunction(object):
         self.signature_name = self.registration_name
         self.arguments = []
         self.argument_names = []
-        self.native_call_args = None
         self.static = cursor.kind == cindex.CursorKind.CXX_METHOD and cursor.is_static_method()
         self.is_const = cursor.kind == cindex.CursorKind.CXX_METHOD and cursor.is_const_method()
         self.implementations = []
@@ -967,8 +972,10 @@ class NativeFunction(object):
         self.min_args = 0
 
         self.real_min_args = min_args
-        self.is_copy_operator = not self.static and (is_constructor or self.func_name == 'operator=') and \
-                                has_copy_argument(min_args, max_args, arguments, cls)
+        self.is_copy_operator = (
+                not self.static
+                and (is_constructor or self.func_name == 'operator=')
+                and has_copy_argument(min_args, max_args, arguments, cls))
 
         if self.registration_name == '0':
             self.registration_name = self.func_name
@@ -988,6 +995,7 @@ class NativeFunction(object):
 
         assert max_args == len(argument_names)
         native_call_args = None
+        native_call_return = None
 
         if should_rename:
             reg_ret = reg_params['ret_type']
@@ -1004,7 +1012,8 @@ class NativeFunction(object):
                 ret_type = reg_ret
 
             args = reg_params['args']
-            if args is not None:
+            native_call_args = reg_params['native_args']
+            if args is not None and native_call_args is not None:
                 new_names = []
                 new_arg_count = len(args)
                 new_args = []
@@ -1022,16 +1031,22 @@ class NativeFunction(object):
                     new_args.append(arg)
                     idx += 1
 
-                if max_args != new_arg_count or arg_idx != idx:
-                    native_call_args = reg_params['native_args']
-                    if native_call_args is None or len(native_call_args) != max_args:
-                        raise Exception('native argument count mismatch')
-                    arguments = new_args
-                    argument_names = new_names
-                    max_args = new_arg_count
-                    min_args = new_arg_count
+                native_call_args_len = len(native_call_args)
+                if ret_type != "void":
+                    if native_call_args_len > max_args:
+                        native_call_return = ','.join(
+                            native_call_args[max_args:])
+                        native_call_args = native_call_args[:max_args]
+                        native_call_args_len = max_args
+                if native_call_args_len != max_args:
+                    raise Exception('native argument count mismatch')
+                arguments = new_args
+                argument_names = new_names
+                max_args = new_arg_count
+                min_args = new_arg_count
 
         self.native_call_args = native_call_args
+        self.native_call_return = native_call_return
         self.arguments = arguments
         self.argument_names = argument_names
         self.ret_type = ret_type
