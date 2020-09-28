@@ -18,8 +18,9 @@
 #if $ReturnType == "void"
 	${from_qtscript};
 #else
-	#if $ReturnType != 'QScriptValue'
-		#set $from_qtscript = "qscriptvalue_cast<{}>({})".format($ret_type.to_string($generator), $from_qtscript)
+	#set ret_type_str = $ret_type.to_string($generator)
+	#if $ret_type_str != 'QScriptValue'
+		#set $from_qtscript = "qscriptvalue_cast<{}>({})".format($ret_type_str, $from_qtscript)
 	#end if
 	return ${ret_type.to_native({
 		"generator": $generator,
