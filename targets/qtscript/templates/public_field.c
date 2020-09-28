@@ -38,6 +38,9 @@ void ${qtscript_class_name}::set${pretty_name.capitalize()}(${arg_t} value)
 void ${qtscript_class_name}::_public_field_set_${pretty_name}(${arg_t} value)
 #end if
 {
+#if $ntype.is_function
+	auto __e = this->engine();
+#end if
 	auto object = thiz<${class_name} *>();
 	if (object)
 	{
