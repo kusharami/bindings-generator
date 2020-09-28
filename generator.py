@@ -20,8 +20,8 @@ type_map = {
     cindex.TypeKind.BOOL: "bool",
     cindex.TypeKind.CHAR_U: "unsigned char",
     cindex.TypeKind.UCHAR: "unsigned char",
-    cindex.TypeKind.CHAR16: "char",
-    cindex.TypeKind.CHAR32: "char",
+    cindex.TypeKind.CHAR16: "char16_t",
+    cindex.TypeKind.CHAR32: "char32_t",
     cindex.TypeKind.USHORT: "unsigned short",
     cindex.TypeKind.UINT: "unsigned int",
     cindex.TypeKind.ULONG: "unsigned long",
@@ -190,6 +190,22 @@ def normalize_std_function_by_sections(sections):
     return normalized_name
 
 
+def std_string_type_for(sections):
+    if sections[1] == 'wchar_t':
+        return "std::wstring"
+
+    if sections[1] == 'char32_t':
+        return "std::u32string"
+
+    if sections[1] == 'char16_t':
+        return "std::u16string"
+
+    if sections[1] == 'char':
+        return "std::string"
+
+    return "??"
+
+
 def normalize_type_str(s, depth=1):
     if s.find('std::function') == 0 or s.find('function') == 0:
         start = s.find('<')
@@ -211,17 +227,19 @@ def normalize_type_str(s, depth=1):
 
     if sections[0] == 'const std::basic_string' or sections[0] == 'const basic_string':
         last_section = sections[len(sections) - 1]
+        strtype = 'const {}'.format(std_string_type_for(sections))
         if last_section == '&' or last_section == '*' or last_section.startswith('::'):
-            return 'const std::string' + last_section
-        else:
-            return 'const std::string'
+            return strtype + last_section
+
+        return strtype
 
     elif sections[0] == 'std::basic_string' or sections[0] == 'basic_string':
         last_section = sections[len(sections) - 1]
+        strtype = std_string_type_for(sections)
         if last_section == '&' or last_section == '*' or last_section.startswith('::'):
-            return 'std::string' + last_section
-        else:
-            return 'std::string'
+            return strtype + last_section
+
+        return strtype
 
     for i in range(1, section_len):
         sections[i] = normalize_type_str(sections[i], depth + 1)
@@ -1941,6 +1959,7 @@ class Generator(object):
         self.skip_methods = {}
         self.skip_classes = []
         self.bind_fields = {}
+        self.skip_fields = {}
         self.generated_classes = {}
         self.rename_functions = {}
         self.rename_classes = {}
@@ -2004,6 +2023,20 @@ class Generator(object):
 
                 if len(list_of_fields) == 0:
                     raise Exception("no fields to bind")
+
+        if opts['skip_field']:
+            list_of_fields = opts['skip_field'].split(';')
+            for field in list_of_fields:
+                pos = field.find("@")
+                if pos <= 0:
+                    raise Exception("invalid list of fields")
+
+                class_name = field[:pos].strip()
+                list_of_fields = field[pos + 1:].strip().split('#')
+                self.skip_fields[class_name] = list_of_fields
+
+                if len(list_of_fields) == 0:
+                    raise Exception("no fields to skip")
 
         if opts['rename_functions']:
             list_of_function_renames = opts['rename_functions'].split(";")
@@ -2118,6 +2151,23 @@ class Generator(object):
         return False
 
     def should_bind_field(self, cls, field_name):
+        for key in self.skip_fields.iterkeys():
+            is_match = key == '*'
+            if not is_match:
+                pattern = re.compile("^" + key + "$")
+                if pattern.match(cls.namespaced_class_name) or pattern.match(
+                        cls.class_name):
+                    is_match = True
+
+            if is_match:
+                skip_fields = self.skip_fields[key]
+                if len(skip_fields) == 1 and skip_fields[0] == "*":
+                    return False
+                if field_name is not None:
+                    for field in skip_fields:
+                        if re.match(field, field_name):
+                            return False
+
         for key in self.bind_fields.iterkeys():
             is_match = key == '*'
             if not is_match:
@@ -2552,6 +2602,7 @@ def main():
                 'skip_methods': config.get(s, 'skip_methods') if config.has_option(s, 'skip_methods') else "",
                 'skip_classes': config.get(s, 'skip_classes'),
                 'field': config.get(s, 'field') if config.has_option(s, 'field') else None,
+                'skip_field': config.get(s, 'skip_field') if config.has_option(s, 'skip_field') else "",
                 'rename_functions': config.get(s, 'rename_functions', 0, dict(userconfig.items('DEFAULT'))),
                 'rename_classes': config.get(s, 'rename_classes'),
                 'out_file': opts.out_file or config.get(s, 'prefix'),

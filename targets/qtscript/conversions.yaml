@@ -6,6 +6,9 @@ definitions:
 conversions:
   native_types:
     "std::string": QByteArray
+    "std::wstring": QString
+    "std::u16string": QString
+    "std::u32string": QString
     "char*": QByteArray
     "unsigned char*": QByteArray
     "std::function": QScriptValue
@@ -13,7 +16,10 @@ conversions:
     "@QUrlTwoFlags<.*>": int
     "enum": int
   to_native:
-    "std::string": "std::string(${in_value}.constData(), size_t(${in_value}.size()))"
+    "std::string": "${in_value}.toStdString()"
+    "std::wstring": "${in_value}.toStdWString()"
+    "std::u16string": "${in_value}.toStdU16String()"
+    "std::u32string": "${in_value}.toStdU32String()"
     "char*": "${in_value}${'.' if $arg.is_const else '->'}data()"
     "unsigned char*": "reinterpret_cast<${'const ' if $arg.is_const else ''}unsigned char*>(${in_value}${'.' if $arg.is_const else '->'}data())"
     intptr_t: "${in_value}"
@@ -49,6 +55,9 @@ conversions:
     "@QUrlTwoFlags<.*>": "${arg.namespaced_name + '(' + $in_value + ')'}"
   from_native:
     "std::string": "QByteArray::fromStdString(${in_value})"
+    "std::wstring": "QString::fromStdWString(${in_value})"
+    "std::u16string": "QString::fromStdU16String(${in_value})"
+    "std::u32string": "QString::fromStdU32String(${in_value})"
     "char*": "QByteArray(${in_value})"
     "unsigned char*": "QByteArray(reinterpret_cast<const char*>(${in_value}))"
     intptr_t: "${in_value}"
