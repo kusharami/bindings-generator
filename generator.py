@@ -953,7 +953,7 @@ class NativeFunction(object):
         should_rename = False
 
         obj_arr = cls.generator.should_rename_function(cls, self.func_name)
-        if obj_arr is not None:
+        if obj_arr:
             for obj in obj_arr:
                 rename_args = obj['args']
                 rename_ret = obj['ret_type']
@@ -2088,6 +2088,7 @@ class Generator(object):
                 self.replace_headers[header] = replaced_header
 
     def should_rename_function(self, cls, method_name):
+        rename_sets = []
         for cls_re, map in self.rename_functions.iteritems():
             is_match = cls_re == '*'
             if not is_match:
@@ -2096,8 +2097,8 @@ class Generator(object):
                         or pattern.match(cls.class_name):
                     is_match = True
             if is_match and method_name in map:
-                return map[method_name]
-        return None
+                rename_sets.extend(map[method_name])
+        return rename_sets
 
     def is_targeted_class(self, namespaced_class_name):
         if self.cpp_ns:
