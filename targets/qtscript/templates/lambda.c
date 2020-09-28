@@ -1,5 +1,5 @@
 #set ReturnType = $ret_type.namespaced_name
-[=](${lambda_parameters}) mutable -> $ReturnType
+!${in_value}.isFunction() ? ${namespaced_name}() : [=](${lambda_parameters}) mutable -> $ReturnType
 {
 #set arg_idx = 0
 #set arg_count = len($param_types)
