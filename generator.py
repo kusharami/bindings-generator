@@ -2197,18 +2197,12 @@ class Generator(object):
         return False
 
     def sorted_classes(self):
-        '''
-        sorted classes in order of inheritance
-        '''
-        sorted_list = []
+        class_list = []
         for nclass in self.generated_classes.itervalues():
-            sorted_list += self._sorted_parents(nclass)
-        # remove dupes from the list
-        no_dupes = []
-        for nclass in sorted_list:
-            if no_dupes.count(nclass) == 0:
-                no_dupes.append(nclass)
-        return no_dupes
+            class_list += self._sorted_parents(nclass)
+
+        return sorted(
+            set(class_list), key=lambda nsclass: nsclass.namespaced_class_name)
 
     def _sorted_parents(self, nclass):
         '''

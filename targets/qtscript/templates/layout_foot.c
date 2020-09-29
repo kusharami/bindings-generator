@@ -2,7 +2,7 @@ void qtscript_register_all_${prefix}(QScriptEngine* engine)
 {
 	QScriptValue targetNamespace;
 #set ns_count = min(len($target_ns), len($cpp_ns))
-#set current_ns = -1
+#set current_ns = None
 #for cls in $sorted_classes()
 	#if $cls.is_code_generated
 		#set i = 0
@@ -15,9 +15,10 @@ void qtscript_register_all_${prefix}(QScriptEngine* engine)
 			#end while
 			#assert $i < $ns_count
 		#end if
-		#if $current_ns != $i
-			#set $current_ns = $i
-	targetNamespace = QtScriptUtils::getNamespaceObject(engine, "${target_ns[$i]}");
+		#set new_current_ns = $target_ns[$i]
+		#if $current_ns != $new_current_ns
+			#set current_ns = $new_current_ns
+	targetNamespace = QtScriptUtils::getNamespaceObject(engine, "${current_ns}");
 		#end if
 	${cls.namespace_name}${cls.qtscript_class_name}::Register(targetNamespace);
 	#end if
