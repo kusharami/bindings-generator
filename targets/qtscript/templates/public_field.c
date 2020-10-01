@@ -11,9 +11,6 @@ ${ReturnType} ${qtscript_class_name}::_public_field_get_${pretty_name}() const
 		"in_value": $in_value,
 		"default": $in_value
 	})
-#if $ntype.is_const and $ReturnType.endswith('*')
-	#set $ret_value = 'const_cast<{}>({})'.format($ReturnType, $ret_value)
-#end if
 		return ${ret_value};
 	}
 #if $ReturnType == "bool"

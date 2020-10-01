@@ -36,9 +36,6 @@ ${ReturnType} ${signature_name}(${arg_decl_list})
 				"default": $call_method,
 				"this_method": $impl
 			})
-		#if $impl.ret_type.is_const and $ReturnType.endswith('*')
-			#set $ret_value = 'const_cast<{}>({})'.format($ReturnType, $ret_value)
-		#end if
 		return ${ret_value};
 	}
 			#if $ReturnType == "bool"
