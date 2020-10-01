@@ -141,6 +141,11 @@ def split_container_name(name):
     comma = name.find(',', left + 1, right)
     if comma == -1:
         results.append(name[left + 1:right].strip())
+        name_len = len(name)
+        if right < name_len - 1:
+            last = name[right + 1:].strip()
+            if last:
+                results.append(last)
         return results
 
     left += 1
