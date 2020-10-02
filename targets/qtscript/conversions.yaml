@@ -9,8 +9,13 @@ conversions:
     "std::wstring": QString
     "std::u16string": QString
     "std::u32string": QString
+    "wchar_t": QString
+    "char16_t": QString
+    "char32_t": QString
     "char*": QByteArray
-    "unsigned char*": QByteArray
+    "wchar_t*": QString
+    "char16_t*": QString
+    "char32_t*": QString
     "std::function": QScriptValue
     "@QFlags<.*>": int
     "@QUrlTwoFlags<.*>": int
@@ -20,8 +25,13 @@ conversions:
     "std::wstring": "${in_value}.toStdWString()"
     "std::u16string": "${in_value}.toStdU16String()"
     "std::u32string": "${in_value}.toStdU32String()"
+    "wchar_t": "${in_value}.toStdWString().c_str()[0]"
+    "char16_t": "${in_value}.toStdU16String().c_str()[0]"
+    "char32_t": "${in_value}.toStdU32String().c_str()[0]"
     "char*": "${in_value}${'.' if $arg.is_const else '->'}data()"
-    "unsigned char*": "reinterpret_cast<${'const ' if $arg.is_const else ''}unsigned char*>(${in_value}${'.' if $arg.is_const else '->'}data())"
+    "wchar_t*": "${in_value}${'.' if $arg.is_const else '->'}toStdWString().c_str()"
+    "char16_t*": "${in_value}${'.' if $arg.is_const else '->'}toStdU16String().c_str()"
+    "char32_t*": "${in_value}${'.' if $arg.is_const else '->'}toStdU32String().c_str()"
     intptr_t: "${in_value}"
     uintptr_t: "${in_value}"
     ushort: "${in_value}"
@@ -58,8 +68,13 @@ conversions:
     "std::wstring": "QString::fromStdWString(${in_value})"
     "std::u16string": "QString::fromStdU16String(${in_value})"
     "std::u32string": "QString::fromStdU32String(${in_value})"
+    "wchar_t": "QString::fromStdWString({${in_value}, wchar_t(0)})"
+    "char16_t": "QString::fromStdU16String({${in_value}, char16_t(0)})"
+    "char32_t": "QString::fromStdU32String({${in_value}, char32_t(0)})"
     "char*": "QByteArray(${in_value})"
-    "unsigned char*": "QByteArray(reinterpret_cast<const char*>(${in_value}))"
+    "wchar_t*": "QString::fromStdWString(${in_value})"
+    "char16_t*": "QString::fromStdU16String(${in_value})"
+    "char32_t*": "QString::fromStdU32String(${in_value})"
     intptr_t: "${in_value}"
     uintptr_t: "${in_value}"
     ushort: "${in_value}"

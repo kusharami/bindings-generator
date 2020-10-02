@@ -472,7 +472,7 @@ class NativeType(object):
         if ntype.kind == cindex.TypeKind.POINTER:
             nt = NativeType.from_type(ntype.get_pointee())
 
-            if None != nt.canonical_type:
+            if nt.canonical_type is not None:
                 nt.canonical_type.name += "*"
                 nt.canonical_type.namespaced_name += "*"
                 nt.canonical_type.whole_name += "*"
@@ -502,10 +502,11 @@ class NativeType(object):
             nt.namespaced_name = get_namespaced_name(decl).replace('::__ndk1', '')
             nt.namespaced_name = nt.namespaced_name.replace('::__1', '')
 
-            if (decl.kind == cindex.CursorKind.CLASS_DECL or decl.kind == cindex.CursorKind.STRUCT_DECL) \
-                    and not nt.namespaced_name.startswith('std::function') \
-                    and not nt.namespaced_name.startswith('std::string') \
-                    and not nt.namespaced_name.startswith('std::basic_string'):
+            if ((decl.kind == cindex.CursorKind.CLASS_DECL
+                or decl.kind == cindex.CursorKind.STRUCT_DECL)
+                    and not nt.namespaced_name.startswith('std::function')
+                    and not nt.namespaced_name.startswith('std::string')
+                    and not nt.namespaced_name.startswith('std::basic_string')):
                 nt.is_object = True
                 nt.namespaced_name = normalize_type_str(nt.namespaced_name)
                 nt.namespace_name = get_namespace_name(decl)
@@ -534,20 +535,26 @@ class NativeType(object):
                 if nt.is_const:
                     nt.whole_name = "const " + nt.whole_name
 
+                canonical = ntype.get_canonical()
                 # Check whether it's a std::function typedef
-                cdecl = ntype.get_canonical().get_declaration()
-                if None != cdecl.spelling and 0 == cmp(cdecl.spelling, "function"):
+                cdecl = canonical.get_declaration()
+                if cdecl.spelling is not None and 0 == cmp(cdecl.spelling, "function"):
                     nt.name = "std::function"
 
-                if nt.name != INVALID_NATIVE_TYPE and nt.namespaced_name != "std::string" and nt.name != "std::function":
-                    if ntype.kind == cindex.TypeKind.UNEXPOSED or ntype.kind == cindex.TypeKind.TYPEDEF or ntype.kind == cindex.TypeKind.ELABORATED:
-                        ret = NativeType.from_type(ntype.get_canonical())
-                        if ret.name != "":
-                            if decl.kind == cindex.CursorKind.TYPEDEF_DECL:
-                                ret.canonical_type = nt
-                            return ret
+                nt.is_enum = canonical.kind == cindex.TypeKind.ENUM
 
-                nt.is_enum = ntype.get_canonical().kind == cindex.TypeKind.ENUM
+                if (nt.name != INVALID_NATIVE_TYPE
+                        and canonical.kind != ntype.kind
+                        and nt.namespaced_name != "std::string"
+                        and nt.name != "std::function"):
+                    canonical = NativeType.from_type(canonical)
+                    if canonical.name:
+                        if '<' in canonical.name:
+                            nt.canonical_type = canonical
+                        else:
+                            temp = nt
+                            nt = canonical
+                            nt.canonical_type = temp
 
                 if nt.name == "std::function":
                     nt.is_object = False
@@ -555,8 +562,10 @@ class NativeType(object):
                     lambda_display_name = lambda_display_name.replace("::__ndk1", "")
                     lambda_display_name = lambda_display_name.replace("::__1", "")
                     lambda_display_name = normalize_type_str(lambda_display_name)
-                    nt.namespaced_name = lambda_display_name
-                    r = re.compile('function<([^\s]+).*\((.*)\)>').search(nt.namespaced_name)
+                    if nt.namespaced_name.startswith('std::function'):
+                        nt.namespaced_name = lambda_display_name
+                    r = re.compile(r'function<([^\s]+).*\((.*)\)>').search(
+                        lambda_display_name)
                     (ret_type, params) = r.groups()
                     params = filter(None, params.split(", "))
 
@@ -703,6 +712,9 @@ class NativeType(object):
                 and this_method.native_call_return is not None):
             return this_method.native_call_return.format(result)
 
+        if not self.is_const and self.whole_name.endswith('&'):
+            return '&' + result
+
         if self.should_cast:
             if self.is_object:
                 fmt = "{}({})"
@@ -737,13 +749,19 @@ class NativeType(object):
             indent = convert_opts.get('level', 0) * "\t"
             return str(tpl).replace("\n", "\n" + indent)
 
+        result = None
         tpl = NativeType.dict_get_value_re(to_native_dict, keys)
         if tpl:
             tpl = Template(tpl, searchList=[convert_opts])
-            return str(tpl).rstrip()
+            result = str(tpl).rstrip()
 
-        if 'default' in convert_opts:
-            return convert_opts['default']
+        if result is None and 'default' in convert_opts:
+            result = convert_opts['default']
+
+        if result is not None:
+            if not self.is_const and self.whole_name.endswith('&'):
+                return '*' + result
+            return result
 
         return "#pragma warning NO CONVERSION TO NATIVE FOR " + self.name + "\n" + convert_opts[
             'level'] * "\t" + "ok = false"
@@ -760,6 +778,8 @@ class NativeType(object):
                 keys.append('std::function')
             to_replace = NativeType.dict_get_value_re(native_types_dict, keys)
             if to_replace:
+                if not self.is_const and self.whole_name.endswith('&'):
+                    to_replace += '*'
                 return to_replace
 
         to_native_dict = generator.config['conversions']['to_native']
@@ -768,7 +788,7 @@ class NativeType(object):
 
         typedef_name = self.canonical_type.name if None != self.canonical_type else None
 
-        if None != typedef_name:
+        if typedef_name is not None:
             if NativeType.dict_has_key_re(to_native_dict, [typedef_name]) or NativeType.dict_has_key_re(
                     from_native_dict, [typedef_name]):
                 use_typedef = True
@@ -776,7 +796,11 @@ class NativeType(object):
         if use_typedef and self.canonical_type:
             name = self.canonical_type.namespaced_name
 
-        return self.with_qualifier(name)
+        result = self.with_qualifier(name)
+        if not self.is_const and self.whole_name.endswith('&'):
+            result += '*'
+
+        return result
 
     def with_qualifier(self, name):
         if self.is_pointer and self.is_const:
@@ -824,6 +848,9 @@ class NativeType(object):
 
             if use_typedef and self.canonical_type:
                 name = self.canonical_type.whole_name
+
+        if name.endswith('&') and not name.startswith('const '):
+            name = name[:-1] + '*'
 
         return name
 
@@ -1683,11 +1710,15 @@ class NativeClass(object):
         '''
         generate qtscript property declaration
         '''
+        name = entry['name']
+        getter = entry['getter'].registration_name
+        if name.startswith('_') and getter.startswith('is'):
+            name = 'is' + name[1:]
         self.generator.head_file.write(
             "\tQ_PROPERTY({type} {name} READ {getter} WRITE {setter})\n".format(
                 type=entry['getter'].ret_type.to_string(self.generator),
-                name=entry['name'],
-                getter=entry['getter'].registration_name,
+                name=name,
+                getter=getter,
                 setter=entry['setter'].registration_name))
 
     def generate_code(self):
@@ -2152,7 +2183,7 @@ class Generator(object):
                     return True
 
                 for func in skip_methods:
-                    if re.match(func, method_name):
+                    if re.match("^" + func + "$", method_name):
                         return True
         return False
 
@@ -2171,7 +2202,7 @@ class Generator(object):
                     return False
                 if field_name is not None:
                     for field in skip_fields:
-                        if re.match(field, field_name):
+                        if re.match("^" + field + "$", field_name):
                             return False
 
         for key in self.bind_fields.iterkeys():
@@ -2188,7 +2219,7 @@ class Generator(object):
                     return True
                 if field_name is not None:
                     for field in bind_fields:
-                        if re.match(field, field_name):
+                        if re.match("^" + field + "$", field_name):
                             return True
         return False
 

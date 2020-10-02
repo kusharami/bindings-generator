@@ -47,6 +47,15 @@ bool ${qtscript_class_name}::constructObject(QScriptContext *context, NativeObje
 					});
 				#if $arg_native == $arg_name_tmp
 			auto ${arg_name} = ${from_qtscript};
+				#elif $arg_native == '*' + $arg_name_tmp
+			auto ${arg_name} = ${from_qtscript};
+			#set arg_name_dummy = 'dummy_' + str($arg_idx)
+			${arg_decl[:-1]} ${arg_name_dummy};
+			if (!${arg_name})
+			{
+				${arg_name} = &${arg_name_dummy};
+			}
+				#set arg_name = '*' + $arg_name
 				#else
 			auto ${arg_name_tmp} = ${from_qtscript};
 			auto ${arg_name} = ${arg_native};
