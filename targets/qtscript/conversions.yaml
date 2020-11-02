@@ -20,6 +20,17 @@ conversions:
     "@QFlags<.*>": int
     "@QUrlTwoFlags<.*>": int
     "enum": int
+    int8_t: qint8
+    int16_t: qint16
+    int32_t: qint32
+    int64_t: qint64
+    uint8_t: quint8
+    uint16_t: quint16
+    uint32_t: quint32
+    uint64_t: quint64
+    size_t: unsigned
+    ssize_t: int
+    qsizetype: int
   to_native:
     "std::string": "${in_value}.toStdString()"
     "std::wstring": "${in_value}.toStdWString()"
@@ -59,6 +70,9 @@ conversions:
     qintptr: "${in_value}"
     quintptr: "${in_value}"
     qreal: "${in_value}"
+    size_t: "${in_value}"
+    ssize_t: "${in_value}"
+    qsizetype: "${in_value}"
     cc_time_t: "${in_value}"
     enum: "${arg.namespaced_name + '(' + $in_value + ')'}"
     "@QFlags<.*>": "${arg.namespaced_name + '(' + $in_value + ')'}"
@@ -104,6 +118,9 @@ conversions:
     qreal: "${in_value}"
     cc_time_t: "${in_value}"
     enum: "int(${in_value})"
+    size_t: "unsigned(${in_value})"
+    ssize_t: "int(${in_value})"
+    qsizetype: "int(${in_value})"
     "@QFlags<.*>": "int(${in_value})"
     "@QUrlTwoFlags<.*>": "int(${in_value})"
     "std::function": "QScriptValue::NullValue"

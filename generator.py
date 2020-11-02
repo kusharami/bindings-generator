@@ -589,7 +589,7 @@ class NativeType(object):
                 name = name[-1]
                 if re.match("^(unsigned|char|short|ushort|int|uint|double|float|long|size_t|ssize_t|int32_t|uint32_t|"
                             "intptr_t|uintptr_t|qintptr|quintptr|qlonglong|qulonglong|int8_t|uint8_t|int16_t|uint16_t|"
-                            "int64_t|uint64_t|qreal|qint8|qint16|qint32|qint64|quint8|quint16|quint32|quint64)$",
+                            "int64_t|uint64_t|qreal|qint8|qint16|qint32|qint64|quint8|quint16|quint32|quint64|qsizetype)$",
                             name) is not None:
                     self.is_numeric = True
 
@@ -768,10 +768,27 @@ class NativeType(object):
 
     def to_string(self, generator):
         name = self.namespaced_name
+        keys = [name]
         conversions = generator.config['conversions']
-        if conversions.has_key('native_types'):
+
+        to_native_dict = conversions['to_native']
+        from_native_dict = conversions['from_native']
+        use_typedef = False
+
+        typedef_name = self.canonical_type.name if self.canonical_type is not None else None
+
+        if typedef_name is not None:
+            if NativeType.dict_has_key_re(to_native_dict, [
+                typedef_name]) or NativeType.dict_has_key_re(
+                    from_native_dict, [typedef_name]):
+                use_typedef = True
+
+        if use_typedef:
+            name = self.canonical_type.namespaced_name
+            keys = [name] + keys
+
+        if 'native_types' in conversions:
             native_types_dict = conversions['native_types']
-            keys = [name]
             if self.is_enum:
                 keys.append('enum')
             if self.is_function:
@@ -781,20 +798,6 @@ class NativeType(object):
                 if not self.is_const and self.whole_name.endswith('&'):
                     to_replace += '*'
                 return to_replace
-
-        to_native_dict = generator.config['conversions']['to_native']
-        from_native_dict = generator.config['conversions']['from_native']
-        use_typedef = False
-
-        typedef_name = self.canonical_type.name if None != self.canonical_type else None
-
-        if typedef_name is not None:
-            if NativeType.dict_has_key_re(to_native_dict, [typedef_name]) or NativeType.dict_has_key_re(
-                    from_native_dict, [typedef_name]):
-                use_typedef = True
-
-        if use_typedef and self.canonical_type:
-            name = self.canonical_type.namespaced_name
 
         result = self.with_qualifier(name)
         if not self.is_const and self.whole_name.endswith('&'):
@@ -809,11 +812,29 @@ class NativeType(object):
 
     def get_whole_name(self, generator):
         conversions = generator.config['conversions']
+
+        to_native_dict = conversions['to_native']
+        from_native_dict = conversions['from_native']
+
+        name = self.namespaced_name
+        keys = [name]
+        typedef_name = self.canonical_type.name if self.canonical_type is not None else None
+
+        use_typedef = False
+        if typedef_name is not None:
+            if NativeType.dict_has_key_re(to_native_dict, [
+                typedef_name]) or NativeType.dict_has_key_re(
+                    from_native_dict, [typedef_name]):
+                use_typedef = True
+
+        if use_typedef:
+            name = self.canonical_type.namespaced_name
+            keys = [name] + keys
+
         to_replace = None
-        if conversions.has_key('native_types'):
+        if 'native_types' in conversions:
             native_types_dict = conversions['native_types']
-            name = self.namespaced_name
-            keys = [name]
+
             if self.is_enum:
                 keys.append('enum')
             if self.is_function:
@@ -835,19 +856,7 @@ class NativeType(object):
                     if self.is_const:
                         name = 'const ' + name
         else:
-            to_native_dict = conversions['to_native']
-            from_native_dict = conversions['from_native']
-            use_typedef = False
-            name = self.whole_name
-            typedef_name = self.canonical_type.name if None != self.canonical_type else None
-
-            if typedef_name is not None:
-                if NativeType.dict_has_key_re(to_native_dict, [typedef_name]) or NativeType.dict_has_key_re(
-                        from_native_dict, [typedef_name]):
-                    use_typedef = True
-
-            if use_typedef and self.canonical_type:
-                name = self.canonical_type.whole_name
+            name = self.canonical_type.whole_name if use_typedef else self.whole_name
 
         if name.endswith('&') and not name.startswith('const '):
             name = name[:-1] + '*'
