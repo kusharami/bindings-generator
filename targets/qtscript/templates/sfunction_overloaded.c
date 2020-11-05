@@ -45,7 +45,7 @@ QScriptValue ${signature_name}(QScriptContext *context, QScriptEngine* __e)
 				#elif $arg_native == '*' + $arg_name_tmp
 			auto ${arg_name} = ${from_qtscript};
 			#set arg_name_dummy = 'dummy_' + str($arg_idx)
-			${arg_decl[:-1]} ${arg_name_dummy};
+			${arg_type[:-1]} ${arg_name_dummy};
 			if (!${arg_name})
 			{
 				${arg_name} = &${arg_name_dummy};
