@@ -1416,9 +1416,21 @@ def to_property_name(prefix, method_name):
         if method_name_lower == prefix or not method_name_lower.startswith(prefix):
             return None
 
-    first_letter = method_name[prefix_len:prefix_len + 1].lower()
-    property_name = first_letter + method_name[prefix_len + 1:]
-    if first_letter.isdigit():
+    lower_first_letters = ""
+    i = prefix_len
+    while True:
+        first_letter = method_name[i:i + 1]
+        lower_first_letter = first_letter.lower()
+        if first_letter == lower_first_letter:
+            break
+        lower_first_letters += lower_first_letter
+        i += 1
+    lower_len = len(lower_first_letters)
+    if 1 < lower_len < len(method_name) - prefix_len:
+        lower_first_letters = lower_first_letters[:-1] + \
+                              lower_first_letters[-1].upper()
+    property_name = lower_first_letters + method_name[prefix_len + lower_len:]
+    if property_name[0].isdigit():
         property_name = '_' + property_name
     return property_name
 
